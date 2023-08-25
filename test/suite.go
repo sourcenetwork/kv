@@ -2,6 +2,7 @@ package kvtest
 
 import (
 	"context"
+	"encoding/binary"
 	"fmt"
 	"reflect"
 	"runtime"
@@ -13,6 +14,8 @@ import (
 // BasicSubtests is a list of all basic tests.
 var BasicSubtests = []func(t *testing.T, store corekv.Store){
 	SubtestBasicPutGet,
+	SubtestBackendsGetSetDelete,
+	SubtestDBIterator,
 	SubtestNotFounds,
 	SubtestPrefix,
 	SubtestLimit,
@@ -33,7 +36,7 @@ func getFunctionName(i interface{}) string {
 func clearDs(t *testing.T, store corekv.Store) {
 	ctx := context.Background()
 
-	it := store.Iterator(ctx, nil, nil)
+	it := store.Iterator(ctx, corekv.DefaultIterOptions)
 	defer it.Close(ctx)
 	res, err := all(it)
 	if err != nil {
@@ -80,4 +83,14 @@ func all(it corekv.Iterator) ([]item, error) {
 		res = append(res, item{it.Key(), val})
 	}
 	return res, nil
+}
+
+func int642Bytes(i int64) []byte {
+	buf := make([]byte, 8)
+	binary.BigEndian.PutUint64(buf, uint64(i))
+	return buf
+}
+
+func bytes2Int64(buf []byte) int64 {
+	return int64(binary.BigEndian.Uint64(buf))
 }

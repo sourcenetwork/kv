@@ -139,21 +139,14 @@ func SubtestManyKeysAndQuery(t *testing.T, store corekv.Store) {
 func SubtestPrefix(t *testing.T, store corekv.Store) {
 	test := func(prefix string) {
 		t.Run(prefix, func(t *testing.T) {
-			subtestIterator(t, store, nil, ElemCount)
+			subtestIterator(t, store, []byte(prefix), ElemCount)
 		})
 	}
-	// test("")
+	test("")
 	test("/")
-	// test("/./")
-	// test("/.././/")
-	// test("/prefix/../")
-
-	// test("/prefix")
-	// test("/prefix/")
-	// test("/prefix/sub/")
-
-	// test("/0/")
-	// test("/bad/")
+	test("/prefix")
+	test("/prefix/")
+	test("/prefix/sub/")
 }
 
 func randValue() []byte {
@@ -166,44 +159,52 @@ func subtestIterator(t *testing.T, store corekv.Store, prefix []byte, count int)
 	ctx := context.Background()
 
 	var input []item
-	// for i := 0; i < count; i++ {
-	// 	s := fmt.Sprintf("%dkey%d", i, i)
-	// 	key := []byte(s)
-	// 	value := randValue()
-	// 	input = append(input, item{
-	// 		key:   key,
-	// 		value: value,
-	// 	})
-	// }
-
-	for i := 0; i < count; i++ {
-		s := fmt.Sprintf("/capital/%dKEY%d", i, i)
-		key := []byte(s)
-		value := randValue()
-		input = append(input, item{
-			key:   key,
-			value: value,
-		})
+	if bytes.HasPrefix([]byte(fmt.Sprintf("%dkey%d", 0, 0)), prefix) {
+		for i := 0; i < count; i++ {
+			s := fmt.Sprintf("%dkey%d", i, i)
+			key := []byte(s)
+			value := randValue()
+			input = append(input, item{
+				key:   key,
+				value: value,
+			})
+		}
 	}
 
-	for i := 0; i < count; i++ {
-		s := fmt.Sprintf("/prefix/%dkey%d", i, i)
-		key := []byte(s)
-		value := randValue()
-		input = append(input, item{
-			key:   key,
-			value: value,
-		})
+	if bytes.HasPrefix([]byte(fmt.Sprintf("/capital/%dKEY%d", 0, 0)), prefix) {
+		for i := 0; i < count; i++ {
+			s := fmt.Sprintf("/capital/%dKEY%d", i, i)
+			key := []byte(s)
+			value := randValue()
+			input = append(input, item{
+				key:   key,
+				value: value,
+			})
+		}
 	}
 
-	for i := 0; i < count; i++ {
-		s := fmt.Sprintf("/prefix/sub/%dkey%d", i, i)
-		key := []byte(s)
-		value := randValue()
-		input = append(input, item{
-			key:   key,
-			value: value,
-		})
+	if bytes.HasPrefix([]byte(fmt.Sprintf("/prefix/%dkey%d", 0, 0)), prefix) {
+		for i := 0; i < count; i++ {
+			s := fmt.Sprintf("/prefix/%dkey%d", i, i)
+			key := []byte(s)
+			value := randValue()
+			input = append(input, item{
+				key:   key,
+				value: value,
+			})
+		}
+	}
+
+	if bytes.HasPrefix([]byte(fmt.Sprintf("/prefix/sub/%dkey%d", 0, 0)), prefix) {
+		for i := 0; i < count; i++ {
+			s := fmt.Sprintf("/prefix/sub/%dkey%d", i, i)
+			key := []byte(s)
+			value := randValue()
+			input = append(input, item{
+				key:   key,
+				value: value,
+			})
+		}
 	}
 
 	t.Logf("putting %d values", len(input))
@@ -232,7 +233,9 @@ func subtestIterator(t *testing.T, store corekv.Store, prefix []byte, count int)
 		return bytes.Compare(expected[i].key, expected[j].key) < 0
 	})
 
-	it := store.Iterator(ctx, prefix, nil)
+	it := store.Iterator(ctx, corekv.IterOptions{
+		Prefix: prefix,
+	})
 	defer func() {
 		it.Close(ctx)
 	}()
@@ -247,7 +250,9 @@ func subtestIterator(t *testing.T, store corekv.Store, prefix []byte, count int)
 	if len(actual) != len(expected) {
 		t.Fatalf("expected %d results, got %d", len(expected), len(actual))
 	}
+	fmt.Printf("iterator with prefix: \"%s\"\n", string(prefix))
 	for i := range actual {
+		fmt.Printf("expected: %s, actual: %s\n", expected[i].key, actual[i].key)
 		if !bytes.Equal(actual[i].key, expected[i].key) {
 			t.Errorf("for result %d, expected key %q, got %q", i, expected[i].key, actual[i].key)
 			continue
