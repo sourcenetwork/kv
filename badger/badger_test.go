@@ -31,5 +31,6 @@ func TestSuite(t *testing.T) {
 	d, done := newDS(t)
 	defer done()
 
+	// kvtest.SubtestPrefix(t, d)
 	kvtest.SubtestAll(t, d)
 }

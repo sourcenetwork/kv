@@ -1,11 +1,12 @@
 package badger
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"fmt"
 
-	"github.com/davecgh/go-spew/spew"
-	badger "github.com/dgraph-io/badger/v4"
+	"github.com/dgraph-io/badger/v4"
 
 	"github.com/sourcenetwork/corekv"
 )
@@ -21,17 +22,20 @@ func NewDatastore(path string, opts badger.Options) (corekv.Store, error) {
 func newDatastore(path string, opts badger.Options) (*bDB, error) {
 	opts.Dir = path
 	opts.ValueDir = path
+	opts.Logger = nil // badger is too chatty
 	store, err := badger.Open(opts)
 	if err != nil {
 		return nil, err
 	}
 
-	return &bDB{
-		db: store,
-	}, nil
+	return newDatastoreFrom(store), nil
 }
 
 func NewDatastoreFrom(db *badger.DB) corekv.Store {
+	return newDatastoreFrom(db)
+}
+
+func newDatastoreFrom(db *badger.DB) *bDB {
 	return &bDB{
 		db: db,
 	}
@@ -41,11 +45,7 @@ func (b *bDB) Get(ctx context.Context, key []byte) ([]byte, error) {
 	txn := b.newTxn(true)
 	defer txn.Discard(ctx)
 
-	val, err := txn.Get(ctx, key)
-	if err != nil && errors.Is(err, badger.ErrKeyNotFound) {
-		return nil, errors.Join(corekv.ErrNotFound, err)
-	}
-	return val, nil
+	return txn.Get(ctx, key)
 }
 
 func (b *bDB) Has(ctx context.Context, key []byte) (bool, error) {
@@ -73,14 +73,16 @@ func (b *bDB) Close() {
 	b.db.Close()
 }
 
-func (b *bDB) Iterator(ctx context.Context, start []byte, end []byte) corekv.Iterator {
+func (b *bDB) Iterator(ctx context.Context, iterOpts corekv.IterOptions) corekv.Iterator {
 	txn := b.newTxn(true)
-	it := txn.iterator(ctx, start, end)
+	it := txn.iterator(ctx, iterOpts)
 
 	// closer for discarding implicit txn
-	it.closer = func() {
+	// so that the txn is discarded when the
+	// iterator is closed
+	it.withCloser(func() {
 		txn.Discard(ctx)
-	}
+	})
 	return it
 
 }
@@ -100,8 +102,9 @@ type bTxn struct {
 func (txn *bTxn) Get(ctx context.Context, key []byte) ([]byte, error) {
 	item, err := txn.t.Get(key)
 	if err != nil {
-		return nil, err
+		return nil, badgerErrToKVErr(err)
 	}
+
 	return item.ValueCopy(nil)
 }
 
@@ -113,39 +116,78 @@ func (txn *bTxn) Has(ctx context.Context, key []byte) (bool, error) {
 	case err == nil:
 		return true, nil
 	default:
-		return false, err
+		return false, badgerErrToKVErr(err)
 	}
 }
 
-func (txn *bTxn) Iterator(ctx context.Context, start []byte, end []byte) corekv.Iterator {
-	return txn.iterator(ctx, start, end)
+func (txn *bTxn) Iterator(ctx context.Context, iterOpts corekv.IterOptions) corekv.Iterator {
+	return txn.iterator(ctx, iterOpts)
 }
 
-func (txn *bTxn) iterator(ctx context.Context, start []byte, end []byte) *bIterator {
+func (txn *bTxn) iterator(ctx context.Context, iopts corekv.IterOptions) iteratorCloser {
+	if iopts.Prefix != nil {
+		return txn.prefixIterator(ctx, iopts.Prefix, iopts.Reverse, iopts.KeysOnly)
+	}
+	return txn.rangeIterator(ctx, iopts.Start, iopts.End, iopts.Reverse, iopts.KeysOnly)
+}
+
+func (txn *bTxn) prefixIterator(ctx context.Context, prefix []byte, reverse, keysOnly bool) *prefixIterator {
 	opt := badger.DefaultIteratorOptions
-	if start != nil {
-		opt.Prefix = start
-	}
-	spew.Dump(opt)
+	opt.Reverse = reverse
+	opt.Prefix = prefix
+	opt.PrefetchValues = !keysOnly
+
 	it := txn.t.NewIterator(opt)
-	it.Rewind() // all badger iterators must start with a rewind
-	return &bIterator{
-		i:     it,
-		start: start,
-		end:   end,
+	it.Seek(prefix) // all badger iterators must start with a rewind
+	return &prefixIterator{
+		i:        it,
+		prefix:   prefix,
+		reverse:  reverse,
+		keysOnly: keysOnly,
+	}
+}
+
+func (txn *bTxn) rangeIterator(ctx context.Context, start, end []byte, reverse, keysOnky bool) *rangeIterator {
+	opt := badger.DefaultIteratorOptions
+	opt.Reverse = reverse
+	opt.PrefetchValues = !keysOnky
+
+	it := txn.t.NewIterator(opt)
+	// all badger iterators must start with a seek/rewind. This is valid
+	// even if start is nil.
+	if !reverse {
+		it.Seek(start)
+	} else {
+		it.Seek(end)
+		// if we seeked to the end and its an exact match to the end marker
+		// go next. This is because ranges are [start, end) (exlusive)
+		if it.Valid() && equal(it.Item().Key(), end) {
+			it.Next()
+		}
+	}
+
+	return &rangeIterator{
+		i:        it,
+		start:    start,
+		end:      end,
+		reverse:  reverse,
+		keysOnly: keysOnky,
 	}
 }
 
 func (txn *bTxn) Set(ctx context.Context, key []byte, value []byte) error {
-	return txn.t.Set(key, value)
+	err := txn.t.Set(key, value)
+	return badgerErrToKVErr(err)
 }
 
 func (txn *bTxn) Delete(ctx context.Context, key []byte) error {
-	return txn.t.Delete(key)
+	err := txn.t.Delete(key)
+	return badgerErrToKVErr(err)
 }
 
 func (txn *bTxn) Commit(ctx context.Context) error {
-	return txn.t.Commit()
+	err := txn.t.Commit()
+	return badgerErrToKVErr(err)
 }
 
 func (txn *bTxn) Discard(ctx context.Context) error {
@@ -153,37 +195,154 @@ func (txn *bTxn) Discard(ctx context.Context) error {
 	return nil
 }
 
-type bIterator struct {
-	i      *badger.Iterator
-	start  []byte
-	end    []byte
-	closer func()
+type iteratorCloser interface {
+	corekv.Iterator
+	withCloser(func())
 }
 
-func (it *bIterator) Domain() (start []byte, end []byte) {
+type rangeIterator struct {
+	i        *badger.Iterator
+	start    []byte
+	end      []byte
+	reverse  bool
+	keysOnly bool
+	closer   func()
+}
+
+func (it *rangeIterator) Domain() (start []byte, end []byte) {
 	return it.start, it.end
 }
 
-func (it *bIterator) Valid() bool {
-	return it.i.Valid()
+func (it *rangeIterator) Valid() bool {
+	if !it.i.Valid() {
+		return false
+	}
+
+	// if its reversed, we check if we passed the start key
+	if it.reverse && it.start != nil {
+		return bytes.Compare(it.i.Item().Key(), it.start) >= 0 // inclusive
+	} else if !it.reverse && it.end != nil {
+		fmt.Println(it.end)
+		fmt.Println(it.i.Item().Key())
+		fmt.Printf("!checking end: key %x end %x \n", it.i.Item().Key(), it.end)
+		// if its forward, we check if we passed the end key
+		cmp := bytes.Compare(it.i.Item().Key(), it.end)
+		fmt.Printf("compare: %v\n", cmp)
+		return bytes.Compare(it.i.Item().Key(), it.end) < 0 // exlusive
+	}
+
+	return true
 }
 
-func (it *bIterator) Next() {
+func (it *rangeIterator) Next() {
 	it.i.Next()
 }
 
-func (it *bIterator) Key() []byte {
+func (it *rangeIterator) Key() []byte {
 	return it.i.Item().KeyCopy(nil)
 }
 
-func (it *bIterator) Value() ([]byte, error) {
+func (it *rangeIterator) Value() ([]byte, error) {
+	if it.keysOnly {
+		return nil, nil
+	}
 	return it.i.Item().ValueCopy(nil)
 }
 
-func (it *bIterator) Close(ctx context.Context) error {
+func (it *rangeIterator) Seek(target []byte) {
+	it.i.Seek(target)
+}
+
+func (it *rangeIterator) Close(ctx context.Context) error {
 	it.i.Close()
 	if it.closer != nil {
 		it.closer()
 	}
 	return nil
+}
+
+func (it *rangeIterator) withCloser(closer func()) {
+	it.closer = closer
+}
+
+type prefixIterator struct {
+	i        *badger.Iterator
+	prefix   []byte
+	reverse  bool
+	keysOnly bool
+	closer   func()
+}
+
+func (it *prefixIterator) Domain() (start []byte, end []byte) {
+	return it.prefix, it.prefix
+}
+
+func (it *prefixIterator) Valid() bool {
+	return it.i.ValidForPrefix(it.prefix)
+}
+
+func (it *prefixIterator) Next() {
+	it.i.Next()
+}
+
+func (it *prefixIterator) Key() []byte {
+	return it.i.Item().KeyCopy(nil)
+}
+
+func (it *prefixIterator) Value() ([]byte, error) {
+	if it.keysOnly {
+		return nil, nil
+	}
+	return it.i.Item().ValueCopy(nil)
+}
+
+func (it *prefixIterator) Seek(target []byte) {
+	it.i.Seek(target)
+}
+
+func (it *prefixIterator) Close(ctx context.Context) error {
+	it.i.Close()
+	if it.closer != nil {
+		it.closer()
+	}
+	return nil
+}
+
+func (it *prefixIterator) withCloser(closer func()) {
+	it.closer = closer
+}
+
+var badgerErrToKVErrMap = map[error]error{
+	badger.ErrEmptyKey:     corekv.ErrEmptyKey,
+	badger.ErrKeyNotFound:  corekv.ErrNotFound,
+	badger.ErrDiscardedTxn: corekv.ErrDiscardedTxn,
+}
+
+func badgerErrToKVErr(err error) error {
+	if err == nil {
+		return nil
+	}
+
+	// first we try the optimistic lookup, assuming
+	// there is no preexisting wrapping
+	mappedErr := badgerErrToKVErrMap[err]
+
+	// then we check the wrapped error chain
+	if mappedErr == nil {
+		switch {
+		case errors.Is(err, badger.ErrEmptyKey):
+			mappedErr = corekv.ErrEmptyKey
+		case errors.Is(err, badger.ErrKeyNotFound):
+			mappedErr = corekv.ErrNotFound
+		default:
+			return err // no mapping needed atm
+		}
+	}
+
+	return errors.Join(mappedErr, err)
+
+}
+
+func equal(a, b []byte) bool {
+	return bytes.Compare(a, b) == 0
 }
