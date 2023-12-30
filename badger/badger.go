@@ -138,7 +138,19 @@ func (txn *bTxn) prefixIterator(ctx context.Context, prefix []byte, reverse, key
 	opt.PrefetchValues = !keysOnly
 
 	it := txn.t.NewIterator(opt)
-	it.Seek(prefix) // all badger iterators must start with a rewind
+	fmt.Println("badger prefix key:", string(prefix))
+	if opt.Reverse {
+		fmt.Println("badger prefix key(modified):", string(bytesPrefixEnd(prefix)))
+		it.Seek(bytesPrefixEnd(prefix))
+		if !it.ValidForPrefix(prefix) {
+			it.Next()
+		}
+	} else {
+		it.Seek(prefix) // all badger iterators must start with a rewind
+
+	}
+
+	fmt.Println("badger first key:", string(it.Item().Key()))
 	return &prefixIterator{
 		i:        it,
 		prefix:   prefix,
@@ -242,11 +254,14 @@ func (it *rangeIterator) Key() []byte {
 	return it.i.Item().KeyCopy(nil)
 }
 
-func (it *rangeIterator) Value() ([]byte, error) {
+func (it *rangeIterator) Value() []byte {
 	if it.keysOnly {
-		return nil, nil
+		return nil
 	}
-	return it.i.Item().ValueCopy(nil)
+
+	// todo: error?
+	val, _ := it.i.Item().ValueCopy(nil)
+	return val
 }
 
 func (it *rangeIterator) Seek(target []byte) {
@@ -278,6 +293,7 @@ func (it *prefixIterator) Domain() (start []byte, end []byte) {
 }
 
 func (it *prefixIterator) Valid() bool {
+	fmt.Println("badger prefix:", string(it.prefix))
 	return it.i.ValidForPrefix(it.prefix)
 }
 
@@ -289,11 +305,13 @@ func (it *prefixIterator) Key() []byte {
 	return it.i.Item().KeyCopy(nil)
 }
 
-func (it *prefixIterator) Value() ([]byte, error) {
+func (it *prefixIterator) Value() []byte {
 	if it.keysOnly {
-		return nil, nil
+		return nil
 	}
-	return it.i.Item().ValueCopy(nil)
+	val, _ := it.i.Item().ValueCopy(nil)
+	// todo: error?
+	return val
 }
 
 func (it *prefixIterator) Seek(target []byte) {
@@ -345,4 +363,18 @@ func badgerErrToKVErr(err error) error {
 
 func equal(a, b []byte) bool {
 	return bytes.Compare(a, b) == 0
+}
+
+func bytesPrefixEnd(b []byte) []byte {
+	end := make([]byte, len(b))
+	copy(end, b)
+	for i := len(end) - 1; i >= 0; i-- {
+		end[i] = end[i] + 1
+		if end[i] != 0 {
+			return end[:i+1]
+		}
+	}
+	// This statement will only be reached if the key is already a
+	// maximal byte string (i.e. already \xff...).
+	return b
 }

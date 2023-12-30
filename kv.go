@@ -52,7 +52,7 @@ type Iterator interface {
 	Valid() bool
 	Next()
 	Key() []byte
-	Value() ([]byte, error)
+	Value() []byte
 	Seek([]byte)
 	Close(ctx context.Context) error
 }

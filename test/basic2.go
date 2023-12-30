@@ -291,6 +291,10 @@ func verifyIterator(t *testing.T, itr corekv.Iterator, expected []int64, msg str
 	assert.Equal(t, expected, list, msg)
 }
 
+func VerifyIterator(t *testing.T, itr corekv.Iterator, expected []int64, msg string) {
+	verifyIterator(t, itr, expected, msg)
+}
+
 func TestDBBatch(t *testing.T, store corekv.Batchable) {
 	// create a new batch, and some items - they should not be visible until we write
 	ctx := context.Background()
@@ -362,8 +366,7 @@ func assertKeyValues(t *testing.T, ctx context.Context, store corekv.Reader, exp
 
 	actual := make(map[string][]byte)
 	for ; iter.Valid(); iter.Next() {
-		val, err := iter.Value()
-		require.NoError(t, err)
+		val := iter.Value()
 		actual[string(iter.Key())] = val
 	}
 

@@ -1,7 +1,6 @@
 package badger
 
 import (
-	"os"
 	"testing"
 
 	"github.com/dgraph-io/badger/v4"
@@ -23,7 +22,6 @@ func newDS(t *testing.T) (*bDB, func()) {
 	}
 	return d, func() {
 		d.Close()
-		os.RemoveAll(path)
 	}
 }
 
