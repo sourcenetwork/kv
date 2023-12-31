@@ -9,6 +9,12 @@ import (
 	"github.com/sourcenetwork/corekv"
 )
 
+type store interface {
+	corekv.Store
+	corekv.Batchable
+	corekv.TxnStore
+}
+
 // namespaceStore wraps a namespace of another database as a logical database.
 type namespaceStore struct {
 	mu        sync.RWMutex
@@ -17,7 +23,6 @@ type namespaceStore struct {
 }
 
 var _ corekv.Store = (*namespaceStore)(nil)
-var _ corekv.TxnStore = (*namespaceStore)(nil)
 
 // Wrap lets you namespace a store with a given prefix.
 // The generic parameter allows you to wrap any kind of
@@ -29,8 +34,6 @@ func Wrap(store corekv.Store, prefix []byte) corekv.Store {
 		store:     store,
 	}
 }
-
-// func
 
 func (nstore *namespaceStore) Get(ctx context.Context, key []byte) ([]byte, error) {
 	if len(key) == 0 {
@@ -90,10 +93,6 @@ func (nstore *namespaceStore) prefixed(key []byte) []byte {
 // *MUST* obtain locks themselves
 func (nstore *namespaceStore) unsafePrefixed(key []byte) []byte {
 	return prefixed(nstore.namespace, key)
-}
-
-func (nstore *namespaceStore) NewTxn(readonly bool) corekv.Txn {
-	panic("todo")
 }
 
 func prefixed(prefix, key []byte) []byte {
