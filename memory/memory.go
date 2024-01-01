@@ -1,23 +1,14 @@
-// Copyright 2022 Democratized Data Foundation
-//
-// Use of this software is governed by the Business Source License
-// included in the file licenses/BSL.txt.
-//
-// As of the Change Date specified in that file, in accordance with
-// the Business Source License, use of this software will be governed
-// by the Apache License, Version 2.0, included in the file
-// licenses/APL.txt.
-
 package memory
 
 import (
+	"bytes"
 	"context"
 	"sync"
 	"sync/atomic"
 	"time"
 
-	ds "github.com/ipfs/go-datastore"
-	dsq "github.com/ipfs/go-datastore/query"
+	"github.com/sourcenetwork/corekv"
+
 	"github.com/tidwall/btree"
 )
 
@@ -40,7 +31,7 @@ func byDSVersion(a, b dsTxn) bool {
 }
 
 type dsItem struct {
-	key       string
+	key       []byte
 	version   uint64
 	val       []byte
 	isDeleted bool
@@ -48,10 +39,11 @@ type dsItem struct {
 }
 
 func byKeys(a, b dsItem) bool {
+	cmp := bytes.Compare(a.key, b.key)
 	switch {
-	case a.key < b.key:
+	case cmp == -1: // a < b
 		return true
-	case a.key == b.key && a.version < b.version:
+	case cmp == 0 && a.version < b.version: // a == b
 		return true
 	default:
 		return false
@@ -71,9 +63,10 @@ type Datastore struct {
 	commitLk sync.Mutex
 }
 
-var _ ds.Datastore = (*Datastore)(nil)
-var _ ds.Batching = (*Datastore)(nil)
-var _ ds.TxnFeature = (*Datastore)(nil)
+var _ corekv.Store = (*Datastore)(nil)
+
+// var _ corekv.Batchable = (*Datastore)(nil)
+// var _ corekv.TxnStore = (*Datastore)(nil)
 
 // NewDatastore constructs an empty Datastore.
 func NewDatastore(ctx context.Context) *Datastore {
@@ -97,24 +90,24 @@ func (d *Datastore) nextVersion() uint64 {
 	return atomic.AddUint64(d.version, 1)
 }
 
-// Batch return a ds.Batch datastore based on Datastore.
-func (d *Datastore) Batch(ctx context.Context) (ds.Batch, error) {
-	return d.newBasicBatch(), nil
-}
+// Batch return a corekv.Batch datastore based on Datastore.
+// func (d *Datastore) Batch(ctx context.Context) (corekv.Batch, error) {
+// 	return d.newBasicBatch(), nil
+// }
 
-// newBasicBatch returns a ds.Batch datastore.
-func (d *Datastore) newBasicBatch() ds.Batch {
-	return &basicBatch{
-		ops: make(map[ds.Key]op),
-		ds:  d,
-	}
-}
+// // newBasicBatch returns a corekv.Batch datastore.
+// func (d *Datastore) newBasicBatch() corekv.Batch {
+// 	return &basicBatch{
+// 		ops: make(map[[]byte]op),
+// 		ds:  d,
+// 	}
+// }
 
-func (d *Datastore) Close() error {
+func (d *Datastore) Close() {
 	d.closeLk.Lock()
 	defer d.closeLk.Unlock()
 	if d.closed {
-		return ErrClosed
+		return
 	}
 
 	d.closed = true
@@ -126,12 +119,10 @@ func (d *Datastore) Close() error {
 		iter.Item().txn.close()
 	}
 	iter.Release()
-
-	return nil
 }
 
-// Delete implements ds.Delete.
-func (d *Datastore) Delete(ctx context.Context, key ds.Key) (err error) {
+// Delete implements corekv.Store
+func (d *Datastore) Delete(ctx context.Context, key []byte) (err error) {
 	d.closeLk.RLock()
 	defer d.closeLk.RUnlock()
 	if d.closed {
@@ -143,10 +134,10 @@ func (d *Datastore) Delete(ctx context.Context, key ds.Key) (err error) {
 	return tx.Commit(ctx)
 }
 
-func (d *Datastore) get(ctx context.Context, key ds.Key, version uint64) dsItem {
+func (d *Datastore) get(ctx context.Context, key []byte, version uint64) dsItem {
 	result := dsItem{}
-	d.values.Descend(dsItem{key: key.String(), version: version}, func(item dsItem) bool {
-		if key.String() == item.key {
+	d.values.Descend(dsItem{key: key, version: version}, func(item dsItem) bool {
+		if bytes.Equal(key, item.key) {
 			result = item
 		}
 		// We only care about the last version so we stop iterating right away by returning false.
@@ -155,62 +146,48 @@ func (d *Datastore) get(ctx context.Context, key ds.Key, version uint64) dsItem 
 	return result
 }
 
-// Get implements ds.Get.
-func (d *Datastore) Get(ctx context.Context, key ds.Key) (value []byte, err error) {
+// Get implements corekv.Store.
+func (d *Datastore) Get(ctx context.Context, key []byte) (value []byte, err error) {
 	d.closeLk.RLock()
 	defer d.closeLk.RUnlock()
 	if d.closed {
 		return nil, ErrClosed
 	}
 	result := d.get(ctx, key, d.getVersion())
-	if result.key == "" || result.isDeleted {
-		return nil, ds.ErrNotFound
+	if result.key == nil || result.isDeleted {
+		return nil, corekv.ErrNotFound
 	}
 	return result.val, nil
 }
 
-// GetSize implements ds.GetSize.
-func (d *Datastore) GetSize(ctx context.Context, key ds.Key) (size int, err error) {
-	d.closeLk.RLock()
-	defer d.closeLk.RUnlock()
-	if d.closed {
-		return 0, ErrClosed
-	}
-	result := d.get(ctx, key, d.getVersion())
-	if result.key == "" || result.isDeleted {
-		return 0, ds.ErrNotFound
-	}
-	return len(result.val), nil
-}
-
-// Has implements ds.Has.
-func (d *Datastore) Has(ctx context.Context, key ds.Key) (exists bool, err error) {
+// Has implements corekv.Store.
+func (d *Datastore) Has(ctx context.Context, key []byte) (exists bool, err error) {
 	d.closeLk.RLock()
 	defer d.closeLk.RUnlock()
 	if d.closed {
 		return false, ErrClosed
 	}
 	result := d.get(ctx, key, d.getVersion())
-	return result.key != "" && !result.isDeleted, nil
+	return result.key != nil && !result.isDeleted, nil
 }
 
-// NewTransaction return a ds.Txn datastore based on Datastore.
-func (d *Datastore) NewTransaction(ctx context.Context, readOnly bool) (ds.Txn, error) {
-	d.closeLk.RLock()
-	defer d.closeLk.RUnlock()
-	if d.closed {
-		return nil, ErrClosed
-	}
-	return d.newTransaction(readOnly), nil
-}
+// NewTransaction return a corekv.Txn datastore based on Datastore.
+// func (d *Datastore) NewTxn(ctx context.Context, readOnly bool) (corekv.Txn, error) {
+// 	d.closeLk.RLock()
+// 	defer d.closeLk.RUnlock()
+// 	if d.closed {
+// 		return nil, ErrClosed
+// 	}
+// 	return d.newTransaction(readOnly), nil
+// }
 
-// newTransaction returns a ds.Txn datastore.
+// newTransaction returns a corekv.Txn datastore.
 //
 // isInternal should be set to true if this transaction is created from within the
 // datastore and is already protected by stuff like locks.  Failure to correctly set
 // this to true may result in deadlocks.  Failure to correctly set it to false may lead
 // to other concurrency issues.
-func (d *Datastore) newTransaction(readOnly bool) ds.Txn {
+func (d *Datastore) newTransaction(readOnly bool) *basicTxn {
 	v := d.getVersion()
 	txn := &basicTxn{
 		ops:       btree.NewBTreeG(byKeys),
@@ -223,8 +200,8 @@ func (d *Datastore) newTransaction(readOnly bool) ds.Txn {
 	return txn
 }
 
-// Put implements ds.Put.
-func (d *Datastore) Put(ctx context.Context, key ds.Key, value []byte) (err error) {
+// Put implements corekv.Store.
+func (d *Datastore) Set(ctx context.Context, key []byte, value []byte) (err error) {
 	d.closeLk.RLock()
 	defer d.closeLk.RUnlock()
 	if d.closed {
@@ -232,55 +209,13 @@ func (d *Datastore) Put(ctx context.Context, key ds.Key, value []byte) (err erro
 	}
 	tx := d.newTransaction(false)
 	// An error can never happen at this stage so we explicitly ignore it
-	_ = tx.Put(ctx, key, value)
+	_ = tx.Set(ctx, key, value)
 	return tx.Commit(ctx)
 }
 
-// Query implements ds.Query.
-func (d *Datastore) Query(ctx context.Context, q dsq.Query) (dsq.Results, error) {
-	d.closeLk.RLock()
-	defer d.closeLk.RUnlock()
-	if d.closed {
-		return nil, ErrClosed
-	}
-	re := make([]dsq.Entry, 0, d.values.Height())
-	iter := d.values.Iter()
-	for iter.Next() {
-		// fast forward to last inserted version
-		item := iter.Item()
-		for iter.Next() {
-			if item.key == iter.Item().key {
-				item = iter.Item()
-				continue
-			}
-			iter.Prev()
-			break
-		}
-
-		if item.isDeleted {
-			continue
-		}
-
-		e := dsq.Entry{Key: item.key, Size: len(item.val)}
-		if !q.KeysOnly {
-			e.Value = item.val
-		}
-
-		re = append(re, e)
-	}
-	iter.Release()
-
-	r := dsq.ResultsWithEntries(q, re)
-	r = dsq.NaiveQueryApply(q, r)
-	return r, nil
-}
-
-// Sync implements ds.Sync.
-func (d *Datastore) Sync(ctx context.Context, prefix ds.Key) error {
-	d.closeLk.RLock()
-	defer d.closeLk.RUnlock()
-	if d.closed {
-		return ErrClosed
+func (d *Datastore) Iterator(ctx context.Context, opts corekv.IterOptions) corekv.Iterator {
+	if opts.Prefix != nil {
+		return newPrefixIter(d.values, opts.Prefix, opts.Reverse, d.getVersion())
 	}
 	return nil
 }
@@ -323,7 +258,7 @@ func (d *Datastore) executePurge(ctx context.Context) {
 			if iter.Item().version > v {
 				continue
 			}
-			if item.key == iter.Item().key {
+			if bytes.Equal(item.key, iter.Item().key) {
 				itemsToDelete = append(itemsToDelete, item)
 				total++
 			}
@@ -348,9 +283,7 @@ func (d *Datastore) executePurge(ctx context.Context) {
 
 func (d *Datastore) handleContextDone(ctx context.Context) {
 	<-ctx.Done()
-	// It is safe to ignore the error since the only error that could occur is if the
-	// datastore is already closed, in which case the purpose of the `Close` call is already covered.
-	_ = d.Close()
+	d.Close()
 }
 
 // commit commits the given transaction to the datastore.

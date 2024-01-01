@@ -10,7 +10,7 @@
 
 package memory
 
-import "github.com/sourcenetwork/defradb/errors"
+import "errors"
 
 var (
 	ErrReadOnlyTxn  = errors.New("read only transaction")

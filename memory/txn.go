@@ -11,16 +11,16 @@
 package memory
 
 import (
+	"bytes"
 	"context"
 	"sync"
 	"sync/atomic"
 
-	ds "github.com/ipfs/go-datastore"
-	dsq "github.com/ipfs/go-datastore/query"
+	"github.com/sourcenetwork/corekv"
 	"github.com/tidwall/btree"
 )
 
-// basicTxn implements ds.Txn
+// basicTxn implements corekv.Txn
 type basicTxn struct {
 	ops *btree.BTreeG[dsItem]
 	ds  *Datastore
@@ -33,7 +33,7 @@ type basicTxn struct {
 	closeLk sync.RWMutex
 }
 
-var _ ds.Txn = (*basicTxn)(nil)
+// var _ ds.Txn = (*basicTxn)(nil)
 
 func (t *basicTxn) getDSVersion() uint64 {
 	return atomic.LoadUint64(t.dsVersion)
@@ -44,7 +44,7 @@ func (t *basicTxn) getTxnVersion() uint64 {
 }
 
 // Delete implements ds.Delete.
-func (t *basicTxn) Delete(ctx context.Context, key ds.Key) error {
+func (t *basicTxn) Delete(ctx context.Context, key []byte) error {
 	t.closeLk.RLock()
 	defer t.closeLk.RUnlock()
 	if t.closed {
@@ -59,25 +59,25 @@ func (t *basicTxn) Delete(ctx context.Context, key ds.Key) error {
 	}
 
 	item := t.get(ctx, key)
-	if item.key == "" || item.isDeleted {
+	if item.key == nil || item.isDeleted {
 		// if the key doesn't exist of the item is already deleted, this is a no-op.
 		return nil
 	}
 
-	t.ops.Set(dsItem{key: key.String(), version: t.getTxnVersion(), isDeleted: true})
+	t.ops.Set(dsItem{key: key, version: t.getTxnVersion(), isDeleted: true})
 	return nil
 }
 
-func (t *basicTxn) get(ctx context.Context, key ds.Key) dsItem {
+func (t *basicTxn) get(ctx context.Context, key []byte) dsItem {
 	result := dsItem{}
-	t.ops.Descend(dsItem{key: key.String(), version: t.getTxnVersion()}, func(item dsItem) bool {
-		if key.String() == item.key {
+	t.ops.Descend(dsItem{key: key, version: t.getTxnVersion()}, func(item dsItem) bool {
+		if bytes.Equal(key, item.key) {
 			result = item
 		}
 		// We only care about the last version so we stop iterating right away by returning false.
 		return false
 	})
-	if result.key == "" {
+	if result.key == nil {
 		result = t.ds.get(ctx, key, t.getDSVersion())
 		result.isGet = true
 		t.ops.Set(result)
@@ -86,7 +86,7 @@ func (t *basicTxn) get(ctx context.Context, key ds.Key) dsItem {
 }
 
 // Get implements ds.Get.
-func (t *basicTxn) Get(ctx context.Context, key ds.Key) ([]byte, error) {
+func (t *basicTxn) Get(ctx context.Context, key []byte) ([]byte, error) {
 	t.closeLk.RLock()
 	defer t.closeLk.RUnlock()
 	if t.closed {
@@ -97,14 +97,14 @@ func (t *basicTxn) Get(ctx context.Context, key ds.Key) ([]byte, error) {
 		return nil, ErrTxnDiscarded
 	}
 	result := t.get(ctx, key)
-	if result.key == "" || result.isDeleted {
-		return nil, ds.ErrNotFound
+	if result.key == nil || result.isDeleted {
+		return nil, corekv.ErrNotFound
 	}
 	return result.val, nil
 }
 
 // GetSize implements ds.GetSize.
-func (t *basicTxn) GetSize(ctx context.Context, key ds.Key) (size int, err error) {
+func (t *basicTxn) GetSize(ctx context.Context, key []byte) (size int, err error) {
 	t.closeLk.RLock()
 	defer t.closeLk.RUnlock()
 	if t.closed {
@@ -115,14 +115,14 @@ func (t *basicTxn) GetSize(ctx context.Context, key ds.Key) (size int, err error
 		return 0, ErrTxnDiscarded
 	}
 	result := t.get(ctx, key)
-	if result.key == "" || result.isDeleted {
-		return 0, ds.ErrNotFound
+	if result.key == nil || result.isDeleted {
+		return 0, corekv.ErrNotFound
 	}
 	return len(result.val), nil
 }
 
 // Has implements ds.Has.
-func (t *basicTxn) Has(ctx context.Context, key ds.Key) (exists bool, err error) {
+func (t *basicTxn) Has(ctx context.Context, key []byte) (exists bool, err error) {
 	t.closeLk.RLock()
 	defer t.closeLk.RUnlock()
 	if t.closed {
@@ -133,14 +133,14 @@ func (t *basicTxn) Has(ctx context.Context, key ds.Key) (exists bool, err error)
 		return false, ErrTxnDiscarded
 	}
 	result := t.get(ctx, key)
-	if result.key == "" || result.isDeleted {
+	if result.key == nil || result.isDeleted {
 		return false, nil
 	}
 	return true, nil
 }
 
-// Put implements ds.Put.
-func (t *basicTxn) Put(ctx context.Context, key ds.Key, value []byte) error {
+// Set implements ds.Set.
+func (t *basicTxn) Set(ctx context.Context, key []byte, value []byte) error {
 	t.closeLk.RLock()
 	defer t.closeLk.RUnlock()
 	if t.closed {
@@ -153,85 +153,85 @@ func (t *basicTxn) Put(ctx context.Context, key ds.Key, value []byte) error {
 	if t.readOnly {
 		return ErrReadOnlyTxn
 	}
-	t.ops.Set(dsItem{key: key.String(), version: t.getTxnVersion(), val: value})
+	t.ops.Set(dsItem{key: key, version: t.getTxnVersion(), val: value})
 
 	return nil
 }
 
 // Query implements ds.Query.
-func (t *basicTxn) Query(ctx context.Context, q dsq.Query) (dsq.Results, error) {
-	t.closeLk.RLock()
-	defer t.closeLk.RUnlock()
-	if t.closed {
-		return nil, ErrClosed
-	}
+// func (t *basicTxn) Query(ctx context.Context, q dsq.Query) (dsq.Results, error) {
+// 	t.closeLk.RLock()
+// 	defer t.closeLk.RUnlock()
+// 	if t.closed {
+// 		return nil, ErrClosed
+// 	}
 
-	if t.discarded {
-		return nil, ErrTxnDiscarded
-	}
-	// best effort allocation
-	re := make([]dsq.Entry, 0, t.ds.values.Height()+t.ops.Height())
-	iter := t.ds.values.Iter()
-	iterOps := t.ops.Iter()
-	iterOpsHasValue := iterOps.Next()
-	// iterate over the underlying store and ensure that ops with keys smaller than or equal to
-	// the key of the underlying store are added with priority.
-	for iter.Next() {
-		// fast forward to last inserted version
-		item := iter.Item()
-		for iter.Next() {
-			if item.key == iter.Item().key {
-				item = iter.Item()
-				continue
-			}
-			iter.Prev()
-			break
-		}
+// 	if t.discarded {
+// 		return nil, ErrTxnDiscarded
+// 	}
+// 	// best effort allocation
+// 	re := make([]dsq.Entry, 0, t.ds.values.Height()+t.ops.Height())
+// 	iter := t.ds.values.Iter()
+// 	iterOps := t.ops.Iter()
+// 	iterOpsHasValue := iterOps.Next()
+// 	// iterate over the underlying store and ensure that ops with keys smaller than or equal to
+// 	// the key of the underlying store are added with priority.
+// 	for iter.Next() {
+// 		// fast forward to last inserted version
+// 		item := iter.Item()
+// 		for iter.Next() {
+// 			if item.key == iter.Item().key {
+// 				item = iter.Item()
+// 				continue
+// 			}
+// 			iter.Prev()
+// 			break
+// 		}
 
-		// handle all ops that come before the current item's key or equal to the current item's key
-		for iterOpsHasValue && iterOps.Item().key <= item.key {
-			if iterOps.Item().key == item.key {
-				item = iterOps.Item()
-			} else if !iterOps.Item().isDeleted && !iterOps.Item().isGet {
-				re = append(re, setEntry(iterOps.Item().key, iterOps.Item().val, q))
-			}
-			iterOpsHasValue = iterOps.Next()
-		}
+// 		// handle all ops that come before the current item's key or equal to the current item's key
+// 		for iterOpsHasValue && iterOps.Item().key <= item.key {
+// 			if iterOps.Item().key == item.key {
+// 				item = iterOps.Item()
+// 			} else if !iterOps.Item().isDeleted && !iterOps.Item().isGet {
+// 				re = append(re, setEntry(iterOps.Item().key, iterOps.Item().val, q))
+// 			}
+// 			iterOpsHasValue = iterOps.Next()
+// 		}
 
-		if item.isDeleted {
-			continue
-		}
+// 		if item.isDeleted {
+// 			continue
+// 		}
 
-		re = append(re, setEntry(item.key, item.val, q))
-	}
+// 		re = append(re, setEntry(item.key, item.val, q))
+// 	}
 
-	iter.Release()
+// 	iter.Release()
 
-	// add the remaining ops
-	for iterOpsHasValue {
-		if !iterOps.Item().isDeleted && !iterOps.Item().isGet {
-			re = append(re, setEntry(iterOps.Item().key, iterOps.Item().val, q))
-		}
-		iterOpsHasValue = iterOps.Next()
-	}
+// 	// add the remaining ops
+// 	for iterOpsHasValue {
+// 		if !iterOps.Item().isDeleted && !iterOps.Item().isGet {
+// 			re = append(re, setEntry(iterOps.Item().key, iterOps.Item().val, q))
+// 		}
+// 		iterOpsHasValue = iterOps.Next()
+// 	}
 
-	iterOps.Release()
+// 	iterOps.Release()
 
-	r := dsq.ResultsWithEntries(q, re)
-	r = dsq.NaiveQueryApply(q, r)
-	return r, nil
-}
+// 	r := dsq.ResultsWithEntries(q, re)
+// 	r = dsq.NaiveQueryApply(q, r)
+// 	return r, nil
+// }
 
-func setEntry(key string, value []byte, q dsq.Query) dsq.Entry {
-	e := dsq.Entry{
-		Key:  key,
-		Size: len(value),
-	}
-	if !q.KeysOnly {
-		e.Value = value
-	}
-	return e
-}
+// func setEntry(key string, value []byte, q dsq.Query) dsq.Entry {
+// 	e := dsq.Entry{
+// 		Key:  key,
+// 		Size: len(value),
+// 	}
+// 	if !q.KeysOnly {
+// 		e.Value = value
+// 	}
+// 	return e
+// }
 
 // Discard removes all the operations added to the transaction.
 func (t *basicTxn) Discard(ctx context.Context) {
@@ -270,8 +270,8 @@ func (t *basicTxn) checkForConflicts(ctx context.Context) error {
 	iter := t.ops.Iter()
 	defer iter.Release()
 	for iter.Next() {
-		expectedItem := t.ds.get(ctx, ds.NewKey(iter.Item().key), t.getDSVersion())
-		latestItem := t.ds.get(ctx, ds.NewKey(iter.Item().key), t.ds.getVersion())
+		expectedItem := t.ds.get(ctx, iter.Item().key, t.getDSVersion())
+		latestItem := t.ds.get(ctx, iter.Item().key, t.ds.getVersion())
 		if latestItem.version != expectedItem.version {
 			return ErrTxnConflict
 		}
