@@ -57,6 +57,9 @@ func (t *basicTxn) Delete(ctx context.Context, key []byte) error {
 	if t.readOnly {
 		return ErrReadOnlyTxn
 	}
+	if len(key) == 0 {
+		return corekv.ErrEmptyKey
+	}
 
 	item := t.get(ctx, key)
 	if item.key == nil || item.isDeleted {
@@ -92,10 +95,13 @@ func (t *basicTxn) Get(ctx context.Context, key []byte) ([]byte, error) {
 	if t.closed {
 		return nil, ErrClosed
 	}
-
 	if t.discarded {
 		return nil, ErrTxnDiscarded
 	}
+	if len(key) == 0 {
+		return nil, corekv.ErrEmptyKey
+	}
+
 	result := t.get(ctx, key)
 	if result.key == nil || result.isDeleted {
 		return nil, corekv.ErrNotFound
@@ -114,6 +120,10 @@ func (t *basicTxn) GetSize(ctx context.Context, key []byte) (size int, err error
 	if t.discarded {
 		return 0, ErrTxnDiscarded
 	}
+	if len(key) == 0 {
+		return 0, corekv.ErrEmptyKey
+	}
+
 	result := t.get(ctx, key)
 	if result.key == nil || result.isDeleted {
 		return 0, corekv.ErrNotFound
@@ -128,10 +138,13 @@ func (t *basicTxn) Has(ctx context.Context, key []byte) (exists bool, err error)
 	if t.closed {
 		return false, ErrClosed
 	}
-
 	if t.discarded {
 		return false, ErrTxnDiscarded
 	}
+	if len(key) == 0 {
+		return false, corekv.ErrEmptyKey
+	}
+
 	result := t.get(ctx, key)
 	if result.key == nil || result.isDeleted {
 		return false, nil
@@ -146,12 +159,14 @@ func (t *basicTxn) Set(ctx context.Context, key []byte, value []byte) error {
 	if t.closed {
 		return ErrClosed
 	}
-
 	if t.discarded {
 		return ErrTxnDiscarded
 	}
 	if t.readOnly {
 		return ErrReadOnlyTxn
+	}
+	if len(key) == 0 {
+		return corekv.ErrEmptyKey
 	}
 	t.ops.Set(dsItem{key: key, version: t.getTxnVersion(), val: value})
 

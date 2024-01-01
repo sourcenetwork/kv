@@ -16,6 +16,6 @@ var (
 	ErrReadOnlyTxn  = errors.New("read only transaction")
 	ErrTxnDiscarded = errors.New("transaction discarded")
 	//nolint:revive
-	ErrTxnConflict = errors.New("Transaction Conflict. Please retry")
+	ErrTxnConflict = errors.New("transaction Conflict. Please retry")
 	ErrClosed      = errors.New("datastore closed")
 )

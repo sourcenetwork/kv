@@ -128,6 +128,9 @@ func (d *Datastore) Delete(ctx context.Context, key []byte) (err error) {
 	if d.closed {
 		return ErrClosed
 	}
+	if len(key) == 0 {
+		return corekv.ErrEmptyKey
+	}
 	tx := d.newTransaction(false)
 	// An error can never happen at this stage so we explicitly ignore it
 	_ = tx.Delete(ctx, key)
@@ -153,6 +156,9 @@ func (d *Datastore) Get(ctx context.Context, key []byte) (value []byte, err erro
 	if d.closed {
 		return nil, ErrClosed
 	}
+	if len(key) == 0 {
+		return nil, corekv.ErrEmptyKey
+	}
 	result := d.get(ctx, key, d.getVersion())
 	if result.key == nil || result.isDeleted {
 		return nil, corekv.ErrNotFound
@@ -166,6 +172,9 @@ func (d *Datastore) Has(ctx context.Context, key []byte) (exists bool, err error
 	defer d.closeLk.RUnlock()
 	if d.closed {
 		return false, ErrClosed
+	}
+	if len(key) == 0 {
+		return false, corekv.ErrEmptyKey
 	}
 	result := d.get(ctx, key, d.getVersion())
 	return result.key != nil && !result.isDeleted, nil
@@ -207,9 +216,16 @@ func (d *Datastore) Set(ctx context.Context, key []byte, value []byte) (err erro
 	if d.closed {
 		return ErrClosed
 	}
+	if len(key) == 0 {
+		return corekv.ErrEmptyKey
+	}
 	tx := d.newTransaction(false)
-	// An error can never happen at this stage so we explicitly ignore it
-	_ = tx.Set(ctx, key, value)
+
+	err = tx.Set(ctx, key, value)
+	if err != nil {
+		tx.Discard(ctx)
+		return err
+	}
 	return tx.Commit(ctx)
 }
 
