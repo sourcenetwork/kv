@@ -3,6 +3,7 @@ package memory
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -39,15 +40,18 @@ type dsItem struct {
 }
 
 func byKeys(a, b dsItem) bool {
+	// fmt.Println("compare:", string(a.key), string(b.key))
 	cmp := bytes.Compare(a.key, b.key)
-	switch {
-	case cmp == -1: // a < b
+	if cmp == -1 { // a < b
 		return true
-	case cmp == 0 && a.version < b.version: // a == b
-		return true
-	default:
+	} else if cmp == 1 { // a > b
 		return false
 	}
+	return byVersion(a, b)
+}
+
+func byVersion(a, b dsItem) bool {
+	return a.version < b.version
 }
 
 // Datastore uses a btree for internal storage.
@@ -163,6 +167,8 @@ func (d *Datastore) Get(ctx context.Context, key []byte) (value []byte, err erro
 	if result.key == nil || result.isDeleted {
 		return nil, corekv.ErrNotFound
 	}
+	fmt.Println("key:", string(key))
+	fmt.Println("version:", result.version)
 	return result.val, nil
 }
 
@@ -231,9 +237,9 @@ func (d *Datastore) Set(ctx context.Context, key []byte, value []byte) (err erro
 
 func (d *Datastore) Iterator(ctx context.Context, opts corekv.IterOptions) corekv.Iterator {
 	if opts.Prefix != nil {
-		return newPrefixIter(d.values, opts.Prefix, opts.Reverse, d.getVersion())
+		return newPrefixIter(ctx, d, opts.Prefix, opts.Reverse, d.getVersion())
 	}
-	return nil
+	return newRangeIter(ctx, d, opts.Start, opts.End, opts.Reverse, d.getVersion())
 }
 
 // purgeOldVersions will execute the purge once a day or when explicitly requested.

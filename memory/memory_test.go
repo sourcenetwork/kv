@@ -500,3 +500,138 @@ func TestSuite(t *testing.T) {
 	// SubtestLimit,
 	// SubtestManyKeysAndQuery,(t, s)
 }
+
+// func loadPrefixData(t *testing.T, ctx context.Context, db corekv.Store) {
+// 	require.NoError(t, db.Set(ctx, bz("key"), bz("value")))      // before namespace
+// 	require.NoError(t, db.Set(ctx, bz("key1"), bz("value1")))    // contained in namespace
+// 	require.NoError(t, db.Set(ctx, bz("key11"), bz("value11")))  // contained in namespace
+// 	require.NoError(t, db.Set(ctx, bz("key12"), bz("value12")))  // contained in namespace
+// 	require.NoError(t, db.Set(ctx, bz("key13"), bz("value13")))  // contained in namespace
+// 	require.NoError(t, db.Set(ctx, bz("key2"), bz("value2")))    // contained in namespace
+// 	require.NoError(t, db.Set(ctx, bz("key3"), bz("value3")))    // contained in namespace
+// 	require.NoError(t, db.Set(ctx, bz("key4"), bz("value4")))    // contained in namespace
+// 	require.NoError(t, db.Set(ctx, bz("key5"), bz("value5")))    // contained in namespace
+// 	require.NoError(t, db.Set(ctx, bz("something"), bz("else"))) // after namespace
+// 	require.NoError(t, db.Set(ctx, bz("k"), bz("val")))          // before namespace
+// 	require.NoError(t, db.Set(ctx, bz("ke"), bz("valu")))        // before namespace
+// 	require.NoError(t, db.Set(ctx, bz("kee"), bz("valuu")))      // before namespace
+// }
+
+// func TestIteratorPrefixForwardPrefix(t *testing.T) {
+// 	ctx := context.Background()
+// 	db := NewDatastore(ctx)
+// 	defer db.Close()
+
+// 	loadPrefixData(t, ctx, db)
+
+// 	it := db.Iterator(ctx, corekv.IterOptions{
+// 		Prefix: bz("key"),
+// 	})
+// 	require.NotNil(t, it)
+
+// 	iteratorVerify(t, it, [][2]string{
+// 		{"key1", "value1"},
+// 		{"key11", "value11"},
+// 		{"key12", "value12"},
+// 		{"key13", "value13"},
+// 		{"key2", "value2"},
+// 		{"key3", "value3"},
+// 		{"key4", "value4"},
+// 		{"key5", "value5"},
+// 	}, "prefix forward full")
+// 	require.NoError(t, it.Close(ctx))
+// }
+
+// func TestIteratorPrefixForwardFull(t *testing.T) {
+// 	ctx := context.Background()
+// 	db := NewDatastore(ctx)
+// 	defer db.Close()
+
+// 	loadPrefixData(t, ctx, db)
+
+// 	it := db.Iterator(ctx, corekv.IterOptions{
+// 		Prefix: bz(""),
+// 	})
+// 	require.NotNil(t, it)
+
+// 	iteratorVerify(t, it, [][2]string{
+// 		{"k", "val"},
+// 		{"ke", "valu"},
+// 		{"kee", "valuu"},
+// 		{"key", "value"},
+// 		{"key1", "value1"},
+// 		{"key11", "value11"},
+// 		{"key12", "value12"},
+// 		{"key13", "value13"},
+// 		{"key2", "value2"},
+// 		{"key3", "value3"},
+// 		{"key4", "value4"},
+// 		{"key5", "value5"},
+// 		{"something", "else"},
+// 	}, "prefix forward full")
+// 	require.NoError(t, it.Close(ctx))
+// }
+
+// func TestIteratorPrefixReverseFull(t *testing.T) {
+// 	ctx := context.Background()
+// 	db := NewDatastore(ctx)
+// 	defer db.Close()
+
+// 	loadPrefixData(t, ctx, db)
+
+// 	it := db.Iterator(ctx, corekv.IterOptions{
+// 		Prefix:  bz(""),
+// 		Reverse: true,
+// 	})
+// 	require.NotNil(t, it)
+
+// 	iteratorVerify(t, it, [][2]string{
+// 		{"something", "else"},
+// 		{"key5", "value5"},
+// 		{"key4", "value4"},
+// 		{"key3", "value3"},
+// 		{"key2", "value2"},
+// 		{"key13", "value13"},
+// 		{"key12", "value12"},
+// 		{"key11", "value11"},
+// 		{"key1", "value1"},
+// 		{"key", "value"},
+// 		{"kee", "valuu"},
+// 		{"ke", "valu"},
+// 		{"k", "val"},
+// 	}, "prefix reverse full")
+// 	require.NoError(t, it.Close(ctx))
+// }
+
+// func TestIteratorDefaultOpts(t *testing.T) {
+// 	ctx := context.Background()
+// 	db := NewDatastore(ctx)
+// 	defer db.Close()
+
+// 	loadPrefixData(t, ctx, db)
+
+// 	it := db.Iterator(ctx, corekv.DefaultIterOptions)
+// 	require.NotNil(t, it)
+
+// 	iteratorVerify(t, it, [][2]string{
+// 		{"k", "val"},
+// 		{"ke", "valu"},
+// 		{"kee", "valuu"},
+// 		{"key", "value"},
+// 		{"key1", "value1"},
+// 		{"key11", "value11"},
+// 		{"key12", "value12"},
+// 		{"key13", "value13"},
+// 		{"key2", "value2"},
+// 		{"key3", "value3"},
+// 		{"key4", "value4"},
+// 		{"key5", "value5"},
+// 		{"something", "else"},
+// 	}, "default forward full")
+// 	require.NoError(t, it.Close(ctx))
+// }
+
+// For testing convenience.
+func bz(s string) []byte {
+	return []byte(s)
+}
