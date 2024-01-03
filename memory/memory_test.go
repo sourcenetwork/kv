@@ -491,13 +491,12 @@ func TestSuite(t *testing.T) {
 	s := NewDatastore(ctx)
 	defer s.Close()
 
-	kvtest.SubtestBasicPutGet(t, s)
-	kvtest.SubtestBackendsGetSetDelete(t, s)
-	// kvtest.SubtestPrefix(t, s)
-	// SubtestDBIterator,
-	// SubtestNotFounds,
-	// SubtestPrefix,
-	// SubtestLimit,
+	kvtest.SubtestAll(t, s)
+	// // kvtest.SubtestBackendsGetSetDelete(t, s)
+	// // kvtest.SubtestPrefix(t, s)
+	// kvtest.SubtestDBIterator(t, s)
+	// kvtest.SubtestNotFounds(t, s)
+	// kvtest.SubtestLimit(t, s)
 	// SubtestManyKeysAndQuery,(t, s)
 }
 

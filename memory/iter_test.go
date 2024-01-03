@@ -43,6 +43,31 @@ func mockDBWithStuff(t *testing.T, ctx context.Context) (corekv.Store, func()) {
 	return db, done
 }
 
+func mockDBWithDuplicates(t *testing.T, ctx context.Context) (corekv.Store, func()) {
+	db, done := newDS(t, ctx)
+
+	require.NoError(t, db.Set(ctx, bz("key"), bz("value")))
+	require.NoError(t, db.Set(ctx, bz("key"), bz("value1")))
+	require.NoError(t, db.Set(ctx, bz("key"), bz("value11")))
+	require.NoError(t, db.Set(ctx, bz("key"), bz("value12")))
+	require.NoError(t, db.Set(ctx, bz("key"), bz("value13")))
+	require.NoError(t, db.Set(ctx, bz("key"), bz("value2")))
+	require.NoError(t, db.Set(ctx, bz("key"), bz("value3")))
+	require.NoError(t, db.Set(ctx, bz("key"), bz("value4")))
+	require.NoError(t, db.Set(ctx, bz("key"), bz("value5")))
+	require.NoError(t, db.Set(ctx, bz("key1"), bz("value")))
+	require.NoError(t, db.Set(ctx, bz("key1"), bz("value1")))
+	require.NoError(t, db.Set(ctx, bz("key1"), bz("value11")))
+	require.NoError(t, db.Set(ctx, bz("key1"), bz("value12")))
+	require.NoError(t, db.Set(ctx, bz("key1"), bz("value13")))
+	require.NoError(t, db.Set(ctx, bz("key1"), bz("value2")))
+	require.NoError(t, db.Set(ctx, bz("key1"), bz("value3")))
+	require.NoError(t, db.Set(ctx, bz("key1"), bz("value4")))
+	require.NoError(t, db.Set(ctx, bz("key1"), bz("value5")))
+
+	return db, done
+}
+
 func TestMemoryDBIteratorForwardFull(t *testing.T) {
 	opts := corekv.IterOptions{}
 	runIteratorTest(t, opts, [][2]string{
@@ -312,6 +337,20 @@ func TestMemoryDBIteratorReversePrefixBeginning(t *testing.T) {
 		{"key12", "value12"},
 		{"key11", "value11"},
 	}, "reverse prefix 1")
+}
+
+func TestMemoryDBDuplicatesIteratorForward(t *testing.T) {
+	ctx := context.Background()
+	db, done := mockDBWithDuplicates(t, ctx)
+	defer done()
+
+	itr := db.Iterator(ctx, corekv.DefaultIterOptions)
+	defer itr.Close(ctx)
+
+	iteratorVerify(t, itr, [][2]string{
+		{"key", "value5"},
+		{"key1", "value5"},
+	}, "duplicates forward full")
 }
 
 func TestMemoryDBIteratorReversePrefixMiddle(t *testing.T) {

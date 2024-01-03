@@ -56,11 +56,11 @@ func newPrefixIter(ctx context.Context, db *Datastore, prefix []byte, reverse bo
 
 	// load first item. Seek will also load, so this may be a duplicate
 	// action, but this is idempotent so its OK.
-	pIter.loadItem()
+	pIter.loadLatestItem()
 	fmt.Println("prefix first item:", string(pIter.Key()))
 
 	// if the first key is an exact match to the prefix, skip next
-	// since prefix is a *strict* prefix
+	// since prefix is a *strict* subset prefix
 	if pIter.curItem != nil && bytes.Equal(pIter.Key(), prefix) {
 		pIter.Next()
 	}
@@ -90,7 +90,7 @@ func validForPrefix(item *dsItem, prefix []byte) bool {
 
 func (iter *dsPrefixIter) Next() {
 	if iter.it.Next() {
-		iter.loadItem()
+		iter.loadLatestItem()
 	} else {
 		iter.curItem = nil
 	}
@@ -123,7 +123,7 @@ func (iter *dsPrefixIter) Seek(key []byte) {
 
 	if iter.it.Seek(dsItem{key: key, version: version}) {
 		fmt.Println("valid seek")
-		iter.loadItem()
+		iter.loadLatestItem()
 	} else {
 		fmt.Println("invalid seek")
 		iter.curItem = nil
@@ -134,8 +134,20 @@ func (iter *dsPrefixIter) Close(ctx context.Context) error {
 	return iter.it.Close()
 }
 
-func (iter *dsPrefixIter) loadItem() {
+func (iter *dsPrefixIter) loadLatestItem() {
 	curItem := iter.it.Item()
+	for iter.it.Next() {
+		if bytes.Equal(curItem.key, iter.it.Item().key) {
+			curItem = iter.it.Item()
+			continue
+		}
+		iter.it.Prev()
+		break
+	}
+
+	if curItem.isDeleted {
+		return
+	}
 	iter.curItem = &curItem
 }
 
@@ -169,7 +181,7 @@ func newRangeIter(ctx context.Context, db *Datastore, start, end []byte, reverse
 	}
 
 	fmt.Println("loading initial item")
-	rIter.loadItem()
+	rIter.loadLatestItem()
 
 	return rIter
 }
@@ -195,7 +207,7 @@ func (iter *dsRangeIter) Valid() bool {
 
 func (iter *dsRangeIter) Next() {
 	if iter.it.Next() {
-		iter.loadItem()
+		iter.loadLatestItem()
 	} else {
 		iter.curItem = nil
 	}
@@ -222,7 +234,7 @@ func (iter *dsRangeIter) Seek(key []byte) {
 
 	if iter.it.Seek(dsItem{key: key, version: version}) {
 		fmt.Println("valid seek")
-		iter.loadItem()
+		iter.loadLatestItem()
 	} else {
 		fmt.Println("invalid seek")
 		iter.curItem = nil
@@ -233,8 +245,21 @@ func (iter *dsRangeIter) Close(ctx context.Context) error {
 	return iter.it.Close()
 }
 
-func (iter *dsRangeIter) loadItem() {
+// loadLatestItem gets the latest version of the current key
+func (iter *dsRangeIter) loadLatestItem() {
 	curItem := iter.it.Item()
+	for iter.it.Next() {
+		if bytes.Equal(curItem.key, iter.it.Item().key) {
+			curItem = iter.it.Item()
+			continue
+		}
+		iter.it.Prev()
+		break
+	}
+
+	if curItem.isDeleted {
+		return
+	}
 	iter.curItem = &curItem
 }
 
@@ -258,6 +283,14 @@ func (bit *baseIterator) Next() bool {
 		return bit.it.Prev()
 	}
 	return bit.it.Next()
+}
+
+func (bit *baseIterator) Prev() bool {
+	fmt.Println("base iterator next")
+	if bit.reverse {
+		return bit.it.Next()
+	}
+	return bit.it.Prev()
 }
 
 func (bit *baseIterator) Item() dsItem {
