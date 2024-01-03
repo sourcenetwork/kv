@@ -127,6 +127,7 @@ func (d *Datastore) Close() {
 
 // Delete implements corekv.Store
 func (d *Datastore) Delete(ctx context.Context, key []byte) (err error) {
+	fmt.Println("getting lock")
 	d.closeLk.RLock()
 	defer d.closeLk.RUnlock()
 	if d.closed {

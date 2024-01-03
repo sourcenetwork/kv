@@ -350,7 +350,7 @@ func TestMemoryDBDuplicatesIteratorForward(t *testing.T) {
 	iteratorVerify(t, itr, [][2]string{
 		{"key", "value5"},
 		{"key1", "value5"},
-	}, "duplicates forward full")
+	}, "duplicates forward full ")
 }
 
 func TestMemoryDBIteratorReversePrefixMiddle(t *testing.T) {
