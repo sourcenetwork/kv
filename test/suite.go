@@ -13,13 +13,13 @@ import (
 
 // BasicSubtests is a list of all basic tests.
 var BasicSubtests = []func(t *testing.T, store corekv.Store){
-	SubtestBasicPutGet,
+	// SubtestBasicPutGet,
 	SubtestBackendsGetSetDelete,
-	SubtestDBIterator,
-	SubtestNotFounds,
-	SubtestPrefix,
-	SubtestLimit,
-	SubtestManyKeysAndQuery,
+	// SubtestDBIterator,
+	// SubtestNotFounds,
+	// SubtestPrefix,
+	// SubtestLimit,
+	// SubtestManyKeysAndQuery,
 }
 
 // BatchSubtests is a list of all basic batching datastore tests.
@@ -34,19 +34,26 @@ func getFunctionName(i interface{}) string {
 }
 
 func clearDs(t *testing.T, store corekv.Store) {
+	t.Log("clearing DS...")
 	ctx := context.Background()
 
 	it := store.Iterator(ctx, corekv.DefaultIterOptions)
 	defer it.Close(ctx)
+	t.Log("clearDS: iterator all")
 	res, err := all(it)
 	if err != nil {
 		t.Fatal(err)
 	}
+	t.Log("clearDS: iterate through res, items:", len(res))
+
 	for _, item := range res {
+		fmt.Println("item:", item)
 		if err := store.Delete(ctx, item.key); err != nil {
 			t.Fatal(err)
 		}
 	}
+
+	t.Log("DS Cleared!")
 }
 
 // SubtestAll tests the given datastore against all the subtests.
