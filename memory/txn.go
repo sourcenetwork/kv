@@ -61,7 +61,7 @@ func (t *basicTxn) Delete(ctx context.Context, key []byte) error {
 		return corekv.ErrEmptyKey
 	}
 
-	item := t.get(ctx, key)
+	item := t.get(key)
 	if item.key == nil || item.isDeleted {
 		// if the key doesn't exist of the item is already deleted, this is a no-op.
 		return nil
@@ -71,7 +71,7 @@ func (t *basicTxn) Delete(ctx context.Context, key []byte) error {
 	return nil
 }
 
-func (t *basicTxn) get(ctx context.Context, key []byte) dsItem {
+func (t *basicTxn) get(key []byte) dsItem {
 	result := dsItem{}
 	t.ops.Descend(dsItem{key: key, version: t.getTxnVersion()}, func(item dsItem) bool {
 		if bytes.Equal(key, item.key) {
@@ -81,7 +81,7 @@ func (t *basicTxn) get(ctx context.Context, key []byte) dsItem {
 		return false
 	})
 	if result.key == nil {
-		result = t.ds.get(ctx, key, t.getDSVersion())
+		result = t.ds.get(key, t.getDSVersion())
 		result.isGet = true
 		t.ops.Set(result)
 	}
@@ -102,7 +102,7 @@ func (t *basicTxn) Get(ctx context.Context, key []byte) ([]byte, error) {
 		return nil, corekv.ErrEmptyKey
 	}
 
-	result := t.get(ctx, key)
+	result := t.get(key)
 	if result.key == nil || result.isDeleted {
 		return nil, corekv.ErrNotFound
 	}
@@ -124,7 +124,7 @@ func (t *basicTxn) GetSize(ctx context.Context, key []byte) (size int, err error
 		return 0, corekv.ErrEmptyKey
 	}
 
-	result := t.get(ctx, key)
+	result := t.get(key)
 	if result.key == nil || result.isDeleted {
 		return 0, corekv.ErrNotFound
 	}
@@ -145,7 +145,7 @@ func (t *basicTxn) Has(ctx context.Context, key []byte) (exists bool, err error)
 		return false, corekv.ErrEmptyKey
 	}
 
-	result := t.get(ctx, key)
+	result := t.get(key)
 	if result.key == nil || result.isDeleted {
 		return false, nil
 	}
@@ -254,7 +254,7 @@ func (t *basicTxn) Discard(ctx context.Context) {
 		return
 	}
 	t.ops.Clear()
-	t.clearInFlightTxn(ctx)
+	t.clearInFlightTxn()
 	t.discarded = true
 }
 
@@ -272,21 +272,21 @@ func (t *basicTxn) Commit(ctx context.Context) error {
 	defer t.Discard(ctx)
 
 	if !t.readOnly {
-		return t.ds.commit(ctx, t)
+		return t.ds.commit(t)
 	}
 
 	return nil
 }
 
-func (t *basicTxn) checkForConflicts(ctx context.Context) error {
+func (t *basicTxn) checkForConflicts() error {
 	if t.getDSVersion() == t.ds.getVersion() {
 		return nil
 	}
 	iter := t.ops.Iter()
 	defer iter.Release()
 	for iter.Next() {
-		expectedItem := t.ds.get(ctx, iter.Item().key, t.getDSVersion())
-		latestItem := t.ds.get(ctx, iter.Item().key, t.ds.getVersion())
+		expectedItem := t.ds.get(iter.Item().key, t.getDSVersion())
+		latestItem := t.ds.get(iter.Item().key, t.ds.getVersion())
 		if latestItem.version != expectedItem.version {
 			return ErrTxnConflict
 		}
@@ -294,14 +294,14 @@ func (t *basicTxn) checkForConflicts(ctx context.Context) error {
 	return nil
 }
 
-func (t *basicTxn) clearInFlightTxn(ctx context.Context) {
+func (t *basicTxn) clearInFlightTxn() {
 	t.ds.inFlightTxn.Delete(
 		dsTxn{
 			dsVersion:  t.getDSVersion(),
 			txnVersion: t.getTxnVersion(),
 		},
 	)
-	t.ds.clearOldInFlightTxn(ctx)
+	t.ds.clearOldInFlightTxn()
 }
 
 func (t *basicTxn) close() {

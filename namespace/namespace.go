@@ -3,17 +3,10 @@ package namespace
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"sync"
 
 	"github.com/sourcenetwork/corekv"
 )
-
-type store interface {
-	corekv.Store
-	corekv.Batchable
-	corekv.TxnStore
-}
 
 // namespaceStore wraps a namespace of another database as a logical database.
 type namespaceStore struct {
@@ -79,8 +72,8 @@ func (nstore *namespaceStore) Delete(ctx context.Context, key []byte) error {
 	return nstore.store.Delete(ctx, pkey)
 }
 
-func (nstore *namespaceStore) Close() {
-	nstore.store.Close()
+func (nstore *namespaceStore) Close() error {
+	return nstore.store.Close()
 }
 
 func (nstore *namespaceStore) prefixed(key []byte) []byte {
@@ -136,29 +129,21 @@ func (nstore *namespaceStore) Iterator(ctx context.Context, opts corekv.IterOpti
 	}
 
 	source := nstore.store.Iterator(ctx, opts)
-	fmt.Println("opts reverse:", opts.Reverse)
-	fmt.Println("opts prefix:", string(opts.Prefix))
-	fmt.Println("opts start:", string(opts.Start))
-	fmt.Println("opts end:", string(opts.End))
 
 	/* TODO START - CLEAN UP BRANCHING */
 	// if start/end aren't defined, we need to seek to the correct
 	// starting point (direction depending)
 	if !hasEnd && !hasStart && !hasPrefix && !opts.Reverse { // without reverse
-		fmt.Println("initial seeking forward")
 		source.Seek(namespace)
 	} else if !hasEnd && !hasStart && !hasPrefix && opts.Reverse { // with reverse
-		fmt.Println("initial seeking reverse")
 		source.Seek(bytesPrefixEnd(namespace))
 	}
 
 	// if start is defined
 	// [Start, nil] + Reverse
 	if opts.Reverse && hasStart && !hasEnd {
-		fmt.Println("initial seeking reverse (with start)")
 		source.Seek(bytesPrefixEnd(namespace))
 	} else if !opts.Reverse && !hasStart && hasEnd {
-		fmt.Println("initial seeking forward (with end)")
 		source.Seek(namespace)
 	}
 
@@ -167,7 +152,6 @@ func (nstore *namespaceStore) Iterator(ctx context.Context, opts corekv.IterOpti
 	// Empty keys are not allowed, so if a key exists in the database that exactly matches the
 	// prefix we need to skip it.
 	if source.Valid() && bytes.Equal(source.Key(), namespace) {
-		fmt.Println("skipping first:", source.Key())
 		source.Next()
 	}
 
@@ -207,39 +191,31 @@ func (nIter *namespaceIterator) Domain() (start []byte, end []byte) {
 
 func (nIter *namespaceIterator) Valid() bool {
 	if !nIter.it.Valid() {
-		fmt.Println("invalid")
 		return false
 	}
 
 	// make sure our keys contain the namespace BUT NOT exactly matching
 	key := nIter.it.Key()
-	fmt.Println("check valid iter key:", string(key))
 	if bytes.Equal(key, nIter.namespace) {
-		fmt.Println("invalid (equality)")
 		return false
 	}
 	if len(key) >= len(nIter.namespace) && !bytes.Equal(key[:len(nIter.namespace)], nIter.namespace) {
-		fmt.Println("invalid (missing prefix)")
 		return false
 	}
-	fmt.Println("key[:len(nIter.namespace)]", string(key[:len(nIter.namespace)]))
 
-	fmt.Println("valid")
 	return true
 }
 
 func (nIter *namespaceIterator) Next() {
-	fmt.Println("next")
 	nIter.it.Next()
 }
 
 func (nIter *namespaceIterator) Key() []byte {
 	key := nIter.it.Key()
-	fmt.Println("Key:", string(key))
 	return key[len(nIter.namespace):] // strip namespace
 }
 
-func (nIter *namespaceIterator) Value() []byte {
+func (nIter *namespaceIterator) Value() ([]byte, error) {
 	return nIter.it.Value()
 }
 

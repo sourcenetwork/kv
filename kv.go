@@ -52,7 +52,7 @@ type Iterator interface {
 	Valid() bool
 	Next()
 	Key() []byte
-	Value() []byte
+	Value() ([]byte, error)
 	Seek([]byte)
 	Close(ctx context.Context) error
 }
@@ -60,7 +60,7 @@ type Iterator interface {
 type Store interface {
 	Reader
 	Writer
-	Close()
+	Close() error
 }
 
 type Batchable interface {

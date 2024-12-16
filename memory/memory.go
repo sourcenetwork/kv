@@ -3,7 +3,7 @@ package memory
 import (
 	"bytes"
 	"context"
-	"fmt"
+	"errors"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -107,11 +107,11 @@ func (d *Datastore) nextVersion() uint64 {
 // 	}
 // }
 
-func (d *Datastore) Close() {
+func (d *Datastore) Close() error {
 	d.closeLk.Lock()
 	defer d.closeLk.Unlock()
 	if d.closed {
-		return
+		return nil
 	}
 
 	d.closed = true
@@ -123,11 +123,12 @@ func (d *Datastore) Close() {
 		iter.Item().txn.close()
 	}
 	iter.Release()
+
+	return nil
 }
 
 // Delete implements corekv.Store
-func (d *Datastore) Delete(ctx context.Context, key []byte) (err error) {
-	fmt.Println("getting lock")
+func (d *Datastore) Delete(ctx context.Context, key []byte) error {
 	d.closeLk.RLock()
 	defer d.closeLk.RUnlock()
 	if d.closed {
@@ -137,12 +138,14 @@ func (d *Datastore) Delete(ctx context.Context, key []byte) (err error) {
 		return corekv.ErrEmptyKey
 	}
 	tx := d.newTransaction(false)
-	// An error can never happen at this stage so we explicitly ignore it
-	_ = tx.Delete(ctx, key)
-	return tx.Commit(ctx)
+
+	err := tx.Delete(ctx, key)
+	cErr := tx.Commit(ctx)
+
+	return errors.Join(err, cErr)
 }
 
-func (d *Datastore) get(ctx context.Context, key []byte, version uint64) dsItem {
+func (d *Datastore) get(key []byte, version uint64) dsItem {
 	result := dsItem{}
 	d.values.Descend(dsItem{key: key, version: version}, func(item dsItem) bool {
 		if bytes.Equal(key, item.key) {
@@ -164,12 +167,11 @@ func (d *Datastore) Get(ctx context.Context, key []byte) (value []byte, err erro
 	if len(key) == 0 {
 		return nil, corekv.ErrEmptyKey
 	}
-	result := d.get(ctx, key, d.getVersion())
+	result := d.get(key, d.getVersion())
 	if result.key == nil || result.isDeleted {
 		return nil, corekv.ErrNotFound
 	}
-	fmt.Println("key:", string(key))
-	fmt.Println("version:", result.version)
+
 	return result.val, nil
 }
 
@@ -183,7 +185,7 @@ func (d *Datastore) Has(ctx context.Context, key []byte) (exists bool, err error
 	if len(key) == 0 {
 		return false, corekv.ErrEmptyKey
 	}
-	result := d.get(ctx, key, d.getVersion())
+	result := d.get(key, d.getVersion())
 	return result.key != nil && !result.isDeleted, nil
 }
 
@@ -256,14 +258,14 @@ func (d *Datastore) purgeOldVersions(ctx context.Context) {
 		case <-d.closing:
 			return
 		case <-time.After(time.Until(nextCompression)):
-			d.executePurge(ctx)
+			d.executePurge()
 			now := time.Now()
 			nextCompression = time.Date(now.Year(), now.Month(), now.Day()+1, 0, 0, 0, 0, now.Location())
 		}
 	}
 }
 
-func (d *Datastore) executePurge(ctx context.Context) {
+func (d *Datastore) executePurge() {
 	// purging bellow this version
 	v := d.getVersion()
 	if dsTxn, hasMin := d.inFlightTxn.Min(); hasMin {
@@ -313,14 +315,14 @@ func (d *Datastore) handleContextDone(ctx context.Context) {
 //
 // WARNING: This is a notable bottleneck, as commits can only be commited one at a time (handled internally).
 // This is to ensure correct, threadsafe, mututation of the datastore version.
-func (d *Datastore) commit(ctx context.Context, t *basicTxn) error {
+func (d *Datastore) commit(t *basicTxn) error {
 	d.commitLk.Lock()
 	defer d.commitLk.Unlock()
 
 	// The commitLk scope must include checkForConflicts, and it must be a write lock. The datastore version
 	// cannot be allowed to change between here and the release of the iterator, else the check for conflicts
 	// will be stale and potentially out of date.
-	err := t.checkForConflicts(ctx)
+	err := t.checkForConflicts()
 	if err != nil {
 		return err
 	}
@@ -339,7 +341,7 @@ func (d *Datastore) commit(ctx context.Context, t *basicTxn) error {
 	return nil
 }
 
-func (d *Datastore) clearOldInFlightTxn(ctx context.Context) {
+func (d *Datastore) clearOldInFlightTxn() {
 	if d.inFlightTxn.Height() == 0 {
 		return
 	}
