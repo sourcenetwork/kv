@@ -38,9 +38,6 @@ var (
 
 	testKey5   = []byte("testKey5")
 	testValue5 = []byte("this is a test value 5")
-
-	testKey6   = []byte("testKey6")
-	testValue6 = []byte("this is a test value 6")
 )
 
 func newLoadedDatastore(ctx context.Context) *Datastore {
@@ -441,7 +438,7 @@ func TestPurgeBatching(t *testing.T) {
 		}
 	}
 
-	s.executePurge(ctx)
+	s.executePurge()
 
 	resp, err := s.Get(ctx, []byte("test"))
 	require.NoError(t, err)
@@ -464,7 +461,7 @@ func TestPurgeWithOlderInFlightTxn(t *testing.T) {
 	err := s.Set(ctx, testKey4, testValue4)
 	require.NoError(t, err)
 
-	s.executePurge(ctx)
+	s.executePurge()
 }
 
 func TestClearOldFlightTransactions(t *testing.T) {
@@ -481,7 +478,7 @@ func TestClearOldFlightTransactions(t *testing.T) {
 
 	require.Equal(t, 1, s.inFlightTxn.Len())
 
-	s.clearOldInFlightTxn(ctx)
+	s.clearOldInFlightTxn()
 
 	require.Equal(t, 0, s.inFlightTxn.Len())
 }

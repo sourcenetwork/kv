@@ -116,7 +116,7 @@ func (iter *dsPrefixIter) Seek(key []byte) {
 	// of that key, otherwise, use the provided DB version
 	// TODO this could use some "peek" mechanic instead of a full lookup
 	version := iter.version
-	result := iter.db.get(iter.ctx, key, version)
+	result := iter.db.get(key, version)
 	if result.key != nil && !result.isDeleted {
 		version = result.version
 	}
@@ -227,7 +227,7 @@ func (iter *dsRangeIter) Seek(key []byte) {
 	// of that key, otherwise, use the provided DB version
 	// TODO this could use some "peek" mechanic instead of a full lookup
 	version := iter.version
-	result := iter.db.get(iter.ctx, key, version)
+	result := iter.db.get(key, version)
 	if result.key != nil && !result.isDeleted {
 		version = result.version
 	}

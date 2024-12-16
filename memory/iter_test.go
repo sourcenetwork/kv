@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func newDS(t *testing.T, ctx context.Context) (corekv.Store, func()) {
+func newDS(_ *testing.T, ctx context.Context) (corekv.Store, func()) {
 	db := NewDatastore(ctx)
 	return db, func() {
 		db.Close()
@@ -390,14 +390,4 @@ func iteratorVerify(t *testing.T, itr corekv.Iterator, expected [][2]string, msg
 		itr.Next()
 	}
 	require.Equal(t, expected, entries, msg)
-}
-
-func iteratorVerifyKeys(t *testing.T, itr corekv.Iterator, expected []string, msg string) {
-	var list []string
-	for itr.Valid() {
-		key := itr.Key()
-		list = append(list, string(key))
-		itr.Next()
-	}
-	require.Equal(t, expected, list, msg)
 }

@@ -9,12 +9,6 @@ import (
 	"github.com/sourcenetwork/corekv"
 )
 
-type store interface {
-	corekv.Store
-	corekv.Batchable
-	corekv.TxnStore
-}
-
 // namespaceStore wraps a namespace of another database as a logical database.
 type namespaceStore struct {
 	mu        sync.RWMutex

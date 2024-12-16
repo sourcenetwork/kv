@@ -75,7 +75,7 @@ func (b *bDB) Close() {
 
 func (b *bDB) Iterator(ctx context.Context, iterOpts corekv.IterOptions) corekv.Iterator {
 	txn := b.newTxn(true)
-	it := txn.iterator(ctx, iterOpts)
+	it := txn.iterator(iterOpts)
 
 	// closer for discarding implicit txn
 	// so that the txn is discarded when the
@@ -121,17 +121,17 @@ func (txn *bTxn) Has(ctx context.Context, key []byte) (bool, error) {
 }
 
 func (txn *bTxn) Iterator(ctx context.Context, iterOpts corekv.IterOptions) corekv.Iterator {
-	return txn.iterator(ctx, iterOpts)
+	return txn.iterator(iterOpts)
 }
 
-func (txn *bTxn) iterator(ctx context.Context, iopts corekv.IterOptions) iteratorCloser {
+func (txn *bTxn) iterator(iopts corekv.IterOptions) iteratorCloser {
 	if iopts.Prefix != nil {
-		return txn.prefixIterator(ctx, iopts.Prefix, iopts.Reverse, iopts.KeysOnly)
+		return txn.prefixIterator(iopts.Prefix, iopts.Reverse, iopts.KeysOnly)
 	}
-	return txn.rangeIterator(ctx, iopts.Start, iopts.End, iopts.Reverse, iopts.KeysOnly)
+	return txn.rangeIterator(iopts.Start, iopts.End, iopts.Reverse, iopts.KeysOnly)
 }
 
-func (txn *bTxn) prefixIterator(ctx context.Context, prefix []byte, reverse, keysOnly bool) *prefixIterator {
+func (txn *bTxn) prefixIterator(prefix []byte, reverse, keysOnly bool) *prefixIterator {
 	opt := badger.DefaultIteratorOptions
 	opt.Reverse = reverse
 	opt.Prefix = prefix
@@ -159,7 +159,7 @@ func (txn *bTxn) prefixIterator(ctx context.Context, prefix []byte, reverse, key
 	}
 }
 
-func (txn *bTxn) rangeIterator(ctx context.Context, start, end []byte, reverse, keysOnky bool) *rangeIterator {
+func (txn *bTxn) rangeIterator(start, end []byte, reverse, keysOnky bool) *rangeIterator {
 	opt := badger.DefaultIteratorOptions
 	opt.Reverse = reverse
 	opt.PrefetchValues = !keysOnky
@@ -362,7 +362,7 @@ func badgerErrToKVErr(err error) error {
 }
 
 func equal(a, b []byte) bool {
-	return bytes.Compare(a, b) == 0
+	return bytes.Equal(a, b)
 }
 
 func bytesPrefixEnd(b []byte) []byte {

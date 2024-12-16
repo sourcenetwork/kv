@@ -12,7 +12,7 @@ import (
 	testkv "github.com/sourcenetwork/corekv/test"
 )
 
-func newDS(t *testing.T, ctx context.Context) (corekv.Store, func()) {
+func newDS(t *testing.T, _ context.Context) (corekv.Store, func()) {
 	path := t.TempDir()
 	db, err := badgerkv.NewDatastore(path, badger.DefaultOptions(path))
 	require.NoError(t, err)
@@ -595,16 +595,6 @@ func runIteratorTest(t *testing.T, opts corekv.IterOptions, expected [][2]string
 	iteratorVerify(t, itr, expected, msg)
 	itr.Close(ctx)
 	done()
-}
-
-func iteratorVerifyKeys(t *testing.T, itr corekv.Iterator, expected []string, msg string) {
-	var list []string
-	for itr.Valid() {
-		key := itr.Key()
-		list = append(list, string(key))
-		itr.Next()
-	}
-	require.Equal(t, expected, list, msg)
 }
 
 func iteratorVerify(t *testing.T, itr corekv.Iterator, expected [][2]string, msg string) {
