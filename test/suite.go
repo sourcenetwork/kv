@@ -83,7 +83,11 @@ func all(it corekv.Iterator) ([]item, error) {
 	fmt.Println("iterator valid:", it.Valid())
 	for ; it.Valid(); it.Next() {
 		fmt.Println("all - iterate")
-		val := it.Value()
+		val, err := it.Value()
+		if err != nil {
+			return nil, err
+		}
+
 		res = append(res, item{it.Key(), val})
 	}
 	return res, nil

@@ -3,6 +3,7 @@ package memory
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"sync/atomic"
@@ -107,11 +108,11 @@ func (d *Datastore) nextVersion() uint64 {
 // 	}
 // }
 
-func (d *Datastore) Close() {
+func (d *Datastore) Close() error {
 	d.closeLk.Lock()
 	defer d.closeLk.Unlock()
 	if d.closed {
-		return
+		return nil
 	}
 
 	d.closed = true
@@ -123,10 +124,12 @@ func (d *Datastore) Close() {
 		iter.Item().txn.close()
 	}
 	iter.Release()
+
+	return nil
 }
 
 // Delete implements corekv.Store
-func (d *Datastore) Delete(ctx context.Context, key []byte) (err error) {
+func (d *Datastore) Delete(ctx context.Context, key []byte) error {
 	fmt.Println("getting lock")
 	d.closeLk.RLock()
 	defer d.closeLk.RUnlock()
@@ -137,9 +140,11 @@ func (d *Datastore) Delete(ctx context.Context, key []byte) (err error) {
 		return corekv.ErrEmptyKey
 	}
 	tx := d.newTransaction(false)
-	// An error can never happen at this stage so we explicitly ignore it
-	_ = tx.Delete(ctx, key)
-	return tx.Commit(ctx)
+
+	err := tx.Delete(ctx, key)
+	cErr := tx.Commit(ctx)
+
+	return errors.Join(err, cErr)
 }
 
 func (d *Datastore) get(key []byte, version uint64) dsItem {

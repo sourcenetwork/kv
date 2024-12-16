@@ -103,11 +103,11 @@ func (iter *dsPrefixIter) Key() []byte {
 	return nil
 }
 
-func (iter *dsPrefixIter) Value() []byte {
+func (iter *dsPrefixIter) Value() ([]byte, error) {
 	if iter.curItem != nil {
-		return iter.curItem.val
+		return iter.curItem.val, nil
 	}
-	return nil
+	return nil, nil
 }
 
 func (iter *dsPrefixIter) Seek(key []byte) {
@@ -217,8 +217,8 @@ func (iter *dsRangeIter) Key() []byte {
 	return iter.curItem.key
 }
 
-func (iter *dsRangeIter) Value() []byte {
-	return iter.curItem.val
+func (iter *dsRangeIter) Value() ([]byte, error) {
+	return iter.curItem.val, nil
 }
 
 func (iter *dsRangeIter) Seek(key []byte) {

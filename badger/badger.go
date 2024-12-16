@@ -43,34 +43,48 @@ func newDatastoreFrom(db *badger.DB) *bDB {
 
 func (b *bDB) Get(ctx context.Context, key []byte) ([]byte, error) {
 	txn := b.newTxn(true)
-	defer txn.Discard(ctx)
 
-	return txn.Get(ctx, key)
+	result, err := txn.Get(ctx, key)
+	dErr := txn.Discard(ctx)
+
+	return result, errors.Join(err, dErr)
 }
 
 func (b *bDB) Has(ctx context.Context, key []byte) (bool, error) {
 	txn := b.newTxn(true)
-	defer txn.Discard(ctx)
 
-	return txn.Has(ctx, key)
+	result, err := txn.Has(ctx, key)
+	dErr := txn.Discard(ctx)
+
+	return result, errors.Join(err, dErr)
 }
 
 func (b *bDB) Set(ctx context.Context, key []byte, value []byte) error {
 	txn := b.newTxn(false)
-	defer txn.Commit(ctx)
 
-	return txn.Set(ctx, key, value)
+	err := txn.Set(ctx, key, value)
+	if err != nil {
+		dErr := txn.Discard(ctx)
+		return errors.Join(err, dErr)
+	}
+
+	return txn.Commit(ctx)
 }
 
 func (b *bDB) Delete(ctx context.Context, key []byte) error {
 	txn := b.newTxn(false)
-	defer txn.Commit(ctx)
 
-	return txn.Delete(ctx, key)
+	err := txn.Delete(ctx, key)
+	if err != nil {
+		dErr := txn.Discard(ctx)
+		return errors.Join(err, dErr)
+	}
+
+	return txn.Commit(ctx)
 }
 
-func (b *bDB) Close() {
-	b.db.Close()
+func (b *bDB) Close() error {
+	return b.db.Close()
 }
 
 func (b *bDB) Iterator(ctx context.Context, iterOpts corekv.IterOptions) corekv.Iterator {
@@ -80,8 +94,8 @@ func (b *bDB) Iterator(ctx context.Context, iterOpts corekv.IterOptions) corekv.
 	// closer for discarding implicit txn
 	// so that the txn is discarded when the
 	// iterator is closed
-	it.withCloser(func() {
-		txn.Discard(ctx)
+	it.withCloser(func() error {
+		return txn.Discard(ctx)
 	})
 	return it
 
@@ -209,7 +223,7 @@ func (txn *bTxn) Discard(ctx context.Context) error {
 
 type iteratorCloser interface {
 	corekv.Iterator
-	withCloser(func())
+	withCloser(func() error)
 }
 
 type rangeIterator struct {
@@ -218,7 +232,7 @@ type rangeIterator struct {
 	end      []byte
 	reverse  bool
 	keysOnly bool
-	closer   func()
+	closer   func() error
 }
 
 func (it *rangeIterator) Domain() (start []byte, end []byte) {
@@ -254,14 +268,12 @@ func (it *rangeIterator) Key() []byte {
 	return it.i.Item().KeyCopy(nil)
 }
 
-func (it *rangeIterator) Value() []byte {
+func (it *rangeIterator) Value() ([]byte, error) {
 	if it.keysOnly {
-		return nil
+		return nil, nil
 	}
 
-	// todo: error?
-	val, _ := it.i.Item().ValueCopy(nil)
-	return val
+	return it.i.Item().ValueCopy(nil)
 }
 
 func (it *rangeIterator) Seek(target []byte) {
@@ -271,12 +283,12 @@ func (it *rangeIterator) Seek(target []byte) {
 func (it *rangeIterator) Close(ctx context.Context) error {
 	it.i.Close()
 	if it.closer != nil {
-		it.closer()
+		return it.closer()
 	}
 	return nil
 }
 
-func (it *rangeIterator) withCloser(closer func()) {
+func (it *rangeIterator) withCloser(closer func() error) {
 	it.closer = closer
 }
 
@@ -285,7 +297,7 @@ type prefixIterator struct {
 	prefix   []byte
 	reverse  bool
 	keysOnly bool
-	closer   func()
+	closer   func() error
 }
 
 func (it *prefixIterator) Domain() (start []byte, end []byte) {
@@ -305,13 +317,11 @@ func (it *prefixIterator) Key() []byte {
 	return it.i.Item().KeyCopy(nil)
 }
 
-func (it *prefixIterator) Value() []byte {
+func (it *prefixIterator) Value() ([]byte, error) {
 	if it.keysOnly {
-		return nil
+		return nil, nil
 	}
-	val, _ := it.i.Item().ValueCopy(nil)
-	// todo: error?
-	return val
+	return it.i.Item().ValueCopy(nil)
 }
 
 func (it *prefixIterator) Seek(target []byte) {
@@ -321,12 +331,12 @@ func (it *prefixIterator) Seek(target []byte) {
 func (it *prefixIterator) Close(ctx context.Context) error {
 	it.i.Close()
 	if it.closer != nil {
-		it.closer()
+		return it.closer()
 	}
 	return nil
 }
 
-func (it *prefixIterator) withCloser(closer func()) {
+func (it *prefixIterator) withCloser(closer func() error) {
 	it.closer = closer
 }
 

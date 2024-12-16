@@ -73,8 +73,8 @@ func (nstore *namespaceStore) Delete(ctx context.Context, key []byte) error {
 	return nstore.store.Delete(ctx, pkey)
 }
 
-func (nstore *namespaceStore) Close() {
-	nstore.store.Close()
+func (nstore *namespaceStore) Close() error {
+	return nstore.store.Close()
 }
 
 func (nstore *namespaceStore) prefixed(key []byte) []byte {
@@ -233,7 +233,7 @@ func (nIter *namespaceIterator) Key() []byte {
 	return key[len(nIter.namespace):] // strip namespace
 }
 
-func (nIter *namespaceIterator) Value() []byte {
+func (nIter *namespaceIterator) Value() ([]byte, error) {
 	return nIter.it.Value()
 }
 

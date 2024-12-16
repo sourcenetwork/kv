@@ -385,7 +385,11 @@ func iteratorVerify(t *testing.T, itr corekv.Iterator, expected [][2]string, msg
 	entries := make([][2]string, 0)
 	for itr.Valid() {
 		key := string(itr.Key())
-		value := string(itr.Value())
+
+		v, err := itr.Value()
+		require.NoError(t, err)
+		value := string(v)
+
 		entries = append(entries, [2]string{key, value})
 		itr.Next()
 	}

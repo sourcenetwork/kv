@@ -45,7 +45,8 @@ func CheckDomain(t *testing.T, itr corekv.Iterator, start, end []byte) {
 }
 
 func CheckItem(t *testing.T, itr corekv.Iterator, key []byte, value []byte) {
-	v := itr.Value()
+	v, err := itr.Value()
+	require.NoError(t, err)
 	k := itr.Key()
 
 	fmt.Println("key:", string(k))

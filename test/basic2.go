@@ -381,7 +381,9 @@ func assertKeyValues(t *testing.T, ctx context.Context, store corekv.Reader, exp
 
 	actual := make(map[string][]byte)
 	for ; iter.Valid(); iter.Next() {
-		val := iter.Value()
+		val, err := iter.Value()
+		require.NoError(t, err)
+
 		actual[string(iter.Key())] = val
 	}
 
