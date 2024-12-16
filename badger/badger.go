@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"fmt"
 
 	"github.com/dgraph-io/badger/v4"
 
@@ -152,9 +151,7 @@ func (txn *bTxn) prefixIterator(prefix []byte, reverse, keysOnly bool) *prefixIt
 	opt.PrefetchValues = !keysOnly
 
 	it := txn.t.NewIterator(opt)
-	fmt.Println("badger prefix key:", string(prefix))
 	if opt.Reverse {
-		fmt.Println("badger prefix key(modified):", string(bytesPrefixEnd(prefix)))
 		it.Seek(bytesPrefixEnd(prefix))
 		if !it.ValidForPrefix(prefix) {
 			it.Next()
@@ -164,7 +161,6 @@ func (txn *bTxn) prefixIterator(prefix []byte, reverse, keysOnly bool) *prefixIt
 
 	}
 
-	fmt.Println("badger first key:", string(it.Item().Key()))
 	return &prefixIterator{
 		i:        it,
 		prefix:   prefix,
@@ -248,12 +244,7 @@ func (it *rangeIterator) Valid() bool {
 	if it.reverse && it.start != nil {
 		return bytes.Compare(it.i.Item().Key(), it.start) >= 0 // inclusive
 	} else if !it.reverse && it.end != nil {
-		fmt.Println(it.end)
-		fmt.Println(it.i.Item().Key())
-		fmt.Printf("!checking end: key %x end %x \n", it.i.Item().Key(), it.end)
 		// if its forward, we check if we passed the end key
-		cmp := bytes.Compare(it.i.Item().Key(), it.end)
-		fmt.Printf("compare: %v\n", cmp)
 		return bytes.Compare(it.i.Item().Key(), it.end) < 0 // exlusive
 	}
 
@@ -305,7 +296,6 @@ func (it *prefixIterator) Domain() (start []byte, end []byte) {
 }
 
 func (it *prefixIterator) Valid() bool {
-	fmt.Println("badger prefix:", string(it.prefix))
 	return it.i.ValidForPrefix(it.prefix)
 }
 

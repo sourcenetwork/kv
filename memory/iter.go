@@ -3,7 +3,6 @@ package memory
 import (
 	"bytes"
 	"context"
-	"fmt"
 
 	"github.com/tidwall/btree"
 )
@@ -40,7 +39,6 @@ func newPrefixIter(ctx context.Context, db *Datastore, prefix []byte, reverse bo
 	}
 	if reverse {
 		if len(prefix) > 0 {
-			fmt.Println("prefix len greater than 0:", len(prefix))
 			pIter.Seek(bytesPrefixEnd(prefix))
 			// Seek is equal to or greater, and the bytesPrefixEnd is the
 			// exact largest value before the prefix is invalid, so we likely
@@ -57,7 +55,6 @@ func newPrefixIter(ctx context.Context, db *Datastore, prefix []byte, reverse bo
 	// load first item. Seek will also load, so this may be a duplicate
 	// action, but this is idempotent so its OK.
 	pIter.loadLatestItem()
-	fmt.Println("prefix first item:", string(pIter.Key()))
 
 	// if the first key is an exact match to the prefix, skip next
 	// since prefix is a *strict* subset prefix
@@ -77,14 +74,10 @@ func (iter *dsPrefixIter) Valid() bool {
 }
 
 func validForPrefix(item *dsItem, prefix []byte) bool {
-	fmt.Println("checking valid for prefix")
-	fmt.Println("prefix:", string(prefix))
 	if item == nil {
-		fmt.Println("key: nil")
 		return false
-	} else {
-		fmt.Println("key:", string(item.key))
 	}
+
 	return bytes.HasPrefix(item.key, prefix) && !bytes.Equal(item.key, prefix)
 }
 
@@ -122,10 +115,8 @@ func (iter *dsPrefixIter) Seek(key []byte) {
 	}
 
 	if iter.it.Seek(dsItem{key: key, version: version}) {
-		fmt.Println("valid seek")
 		iter.loadLatestItem()
 	} else {
-		fmt.Println("invalid seek")
 		iter.curItem = nil
 	}
 }
@@ -168,7 +159,6 @@ func newRangeIter(ctx context.Context, db *Datastore, start, end []byte, reverse
 	}
 
 	if len(end) > 0 && reverse {
-		fmt.Println("seeking end")
 		rIter.Seek(end)
 		// end in range is exclusive, so we need to make sure to iterate
 		// back till we are *before* the end target
@@ -176,11 +166,9 @@ func newRangeIter(ctx context.Context, db *Datastore, start, end []byte, reverse
 			rIter.Next()
 		}
 	} else if len(start) > 0 && !reverse {
-		fmt.Println("seeking start")
 		rIter.Seek(start)
 	}
 
-	fmt.Println("loading initial item")
 	rIter.loadLatestItem()
 
 	return rIter
@@ -191,17 +179,14 @@ func (iter *dsRangeIter) Domain() (start []byte, end []byte) {
 }
 
 func (iter *dsRangeIter) Valid() bool {
-	fmt.Println("checking range valid 1")
 	if iter.curItem == nil {
 		return false
 	}
 
-	fmt.Println("checking range valid 2", string(iter.curItem.key), string(iter.end))
 	if len(iter.end) > 0 && !lt(iter.curItem.key, iter.end) {
 		return false
 	}
 
-	fmt.Println("checking range valid 3")
 	return gte(iter.curItem.key, iter.start)
 }
 
@@ -233,10 +218,8 @@ func (iter *dsRangeIter) Seek(key []byte) {
 	}
 
 	if iter.it.Seek(dsItem{key: key, version: version}) {
-		fmt.Println("valid seek")
 		iter.loadLatestItem()
 	} else {
-		fmt.Println("invalid seek")
 		iter.curItem = nil
 	}
 }
@@ -278,7 +261,6 @@ func newBaseIterator(bt *btree.BTreeG[dsItem], reverse bool) *baseIterator {
 }
 
 func (bit *baseIterator) Next() bool {
-	fmt.Println("base iterator next")
 	if bit.reverse {
 		return bit.it.Prev()
 	}
@@ -286,7 +268,6 @@ func (bit *baseIterator) Next() bool {
 }
 
 func (bit *baseIterator) Prev() bool {
-	fmt.Println("base iterator next")
 	if bit.reverse {
 		return bit.it.Next()
 	}
@@ -294,16 +275,11 @@ func (bit *baseIterator) Prev() bool {
 }
 
 func (bit *baseIterator) Item() dsItem {
-	fmt.Println("base iterator item")
 	return bit.it.Item()
 }
 
 func (bit *baseIterator) Seek(key dsItem) bool {
-	fmt.Println("base iterator seek:", string(key.key))
-	valid := bit.it.Seek(key)
-	fmt.Println("base iterator seek valid:", valid)
-	fmt.Println("value after base iterator seek:", string(bit.it.Item().key))
-	return valid
+	return bit.it.Seek(key)
 }
 
 func (bit *baseIterator) Close() error {

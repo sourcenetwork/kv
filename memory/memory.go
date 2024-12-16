@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -130,7 +129,6 @@ func (d *Datastore) Close() error {
 
 // Delete implements corekv.Store
 func (d *Datastore) Delete(ctx context.Context, key []byte) error {
-	fmt.Println("getting lock")
 	d.closeLk.RLock()
 	defer d.closeLk.RUnlock()
 	if d.closed {
@@ -173,8 +171,7 @@ func (d *Datastore) Get(ctx context.Context, key []byte) (value []byte, err erro
 	if result.key == nil || result.isDeleted {
 		return nil, corekv.ErrNotFound
 	}
-	fmt.Println("key:", string(key))
-	fmt.Println("version:", result.version)
+
 	return result.val, nil
 }
 
