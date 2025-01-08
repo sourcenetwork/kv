@@ -33,13 +33,6 @@ func mockDBWithStuff(t *testing.T, ctx context.Context) (corekv.Store, func()) {
 	require.NoError(t, db.Set(ctx, bz("ke"), bz("valu")))
 	require.NoError(t, db.Set(ctx, bz("kee"), bz("valuu")))
 
-	// itr := db.Iterator(ctx, corekv.DefaultIterOptions)
-
-	// for ; itr.Valid(); itr.Next() {
-	// 	fmt.Println("namespace.iter.Key", string(itr.Key()))
-	// 	fmt.Println("namespace.iter.Value", string(itr.Value()))
-	// }
-
 	return db, done
 }
 

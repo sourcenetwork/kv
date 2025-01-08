@@ -156,34 +156,6 @@ func TestDeleteOperationWithStoreClosed(t *testing.T) {
 	require.ErrorIs(t, err, ErrClosed)
 }
 
-// func TestGetSizeOperation(t *testing.T) {
-// 	ctx := context.Background()
-// 	s := newLoadedDatastore(ctx)
-
-// 	resp, err := s.GetSize(ctx, testKey1)
-// 	require.NoError(t, err)
-// 	require.Equal(t, len(testValue1), resp)
-// }
-
-// func TestGetSizeOperationNotFound(t *testing.T) {
-// 	ctx := context.Background()
-// 	s := newLoadedDatastore(ctx)
-
-// 	_, err := s.GetSize(ctx, testKey3)
-// 	require.ErrorIs(t, err, ds.ErrNotFound)
-// }
-
-// func TestGetSizeOperationWithStoreClosed(t *testing.T) {
-// 	ctx := context.Background()
-// 	s := newLoadedDatastore(ctx)
-
-// 	s.Close()
-// 	require.NoError(t, err)
-
-// 	_, err = s.GetSize(ctx, testKey3)
-// 	require.ErrorIs(t, err, ErrClosed)
-// }
-
 func TestHasOperation(t *testing.T) {
 	ctx := context.Background()
 	s := newLoadedDatastore(ctx)
@@ -236,36 +208,6 @@ func TestPutOperationWithStoreClosed(t *testing.T) {
 	require.ErrorIs(t, err, ErrClosed)
 }
 
-// func TestQueryOperation(t *testing.T) {
-// 	ctx := context.Background()
-// 	s := newLoadedDatastore(ctx)
-
-// 	results, err := s.Query(ctx, dsq.Query{
-// 		Limit:  1,
-// 		Offset: 1,
-// 	})
-// 	require.NoError(t, err)
-
-// 	result, _ := results.NextSync()
-
-// 	require.Equal(t, testKey2.String(), result.Entry.Key)
-// 	require.Equal(t, testValue2, result.Entry.Value)
-// }
-
-// func TestQueryOperationWithStoreClosed(t *testing.T) {
-// 	ctx := context.Background()
-// 	s := newLoadedDatastore(ctx)
-
-// 	s.Close()
-// 	// require.NoError(t, err)
-
-// 	_, err = s.Query(ctx, dsq.Query{
-// 		Limit:  1,
-// 		Offset: 1,
-// 	})
-// 	require.ErrorIs(t, err, ErrClosed)
-// }
-
 func TestQueryOperationWithAddedItems(t *testing.T) {
 	ctx := context.Background()
 	s := newLoadedDatastore(ctx)
@@ -286,34 +228,6 @@ func TestQueryOperationWithAddedItems(t *testing.T) {
 
 	err = s.Delete(ctx, testKey1)
 	require.NoError(t, err)
-
-	// results, err := s.Query(ctx, dsq.Query{})
-	// require.NoError(t, err)
-	// entries, err := results.Rest()
-	// require.NoError(t, err)
-	// expectedResults := []dsq.Entry{
-	// 	{
-	// 		Key:   testKey2.String(),
-	// 		Value: testValue2,
-	// 		Size:  len(testValue2),
-	// 	},
-	// 	{
-	// 		Key:   testKey3.String(),
-	// 		Value: testValue3,
-	// 		Size:  len(testValue3),
-	// 	},
-	// 	{
-	// 		Key:   testKey4.String(),
-	// 		Value: testValue4,
-	// 		Size:  len(testValue4),
-	// 	},
-	// 	{
-	// 		Key:   testKey5.String(),
-	// 		Value: testValue5,
-	// 		Size:  len(testValue5),
-	// 	},
-	// }
-	// require.Equal(t, expectedResults, entries)
 }
 
 func TestConcurrentWrite(t *testing.T) {
@@ -334,97 +248,6 @@ func TestConcurrentWrite(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, []byte("this is a test value 3"), resp)
 }
-
-// func TestSyncOperation(t *testing.T) {
-// 	ctx := context.Background()
-// 	s := newLoadedDatastore(ctx)
-
-// 	err := s.Sync(ctx, testKey1)
-// 	require.NoError(t, err)
-// }
-
-// func TestSyncOperationWithStoreClosed(t *testing.T) {
-// 	ctx := context.Background()
-// 	s := newLoadedDatastore(ctx)
-
-// 	s.Close()
-// 	// require.NoError(t, err)
-
-// 	err = s.Sync(ctx, testKey1)
-// 	require.ErrorIs(t, err, ErrClosed)
-// }
-
-// func TestPurge(t *testing.T) {
-// 	ctx := context.Background()
-// 	s := newLoadedDatastore(ctx)
-
-// 	err := s.Set(ctx, testKey1, testValue2)
-// 	require.NoError(t, err)
-// 	err = s.Set(ctx, testKey2, testValue3)
-// 	require.NoError(t, err)
-
-// 	iter := s.values.Iter()
-// 	results := []dsq.Entry{}
-// 	for iter.Next() {
-// 		results = append(results, dsq.Entry{
-// 			Key:   iter.Item().key,
-// 			Value: iter.Item().val,
-// 			Size:  len(iter.Item().val),
-// 		})
-// 	}
-// 	iter.Release()
-
-// 	expectedResults := []dsq.Entry{
-// 		{
-// 			Key:   testKey1.String(),
-// 			Value: testValue1,
-// 			Size:  len(testValue1),
-// 		},
-// 		{
-// 			Key:   testKey1.String(),
-// 			Value: testValue2,
-// 			Size:  len(testValue2),
-// 		},
-// 		{
-// 			Key:   testKey2.String(),
-// 			Value: testValue2,
-// 			Size:  len(testValue2),
-// 		},
-// 		{
-// 			Key:   testKey2.String(),
-// 			Value: testValue3,
-// 			Size:  len(testValue3),
-// 		},
-// 	}
-// 	require.Equal(t, expectedResults, results)
-
-// 	s.executePurge(ctx)
-
-// 	iter = s.values.Iter()
-// 	results = []dsq.Entry{}
-// 	for iter.Next() {
-// 		results = append(results, dsq.Entry{
-// 			Key:   iter.Item().key,
-// 			Value: iter.Item().val,
-// 			Size:  len(iter.Item().val),
-// 		})
-// 	}
-// 	iter.Release()
-
-// 	expectedResults = []dsq.Entry{
-// 		{
-// 			Key:   testKey1.String(),
-// 			Value: testValue2,
-// 			Size:  len(testValue2),
-// 		},
-// 		{
-// 			Key:   testKey2.String(),
-// 			Value: testValue3,
-// 			Size:  len(testValue3),
-// 		},
-// 	}
-// 	require.Equal(t, expectedResults, results)
-// }
 
 func TestPurgeBatching(t *testing.T) {
 	ctx := context.Background()
@@ -481,136 +304,6 @@ func TestClearOldFlightTransactions(t *testing.T) {
 
 	require.Equal(t, 0, s.inFlightTxn.Len())
 }
-
-// func loadPrefixData(t *testing.T, ctx context.Context, db corekv.Store) {
-// 	require.NoError(t, db.Set(ctx, bz("key"), bz("value")))      // before namespace
-// 	require.NoError(t, db.Set(ctx, bz("key1"), bz("value1")))    // contained in namespace
-// 	require.NoError(t, db.Set(ctx, bz("key11"), bz("value11")))  // contained in namespace
-// 	require.NoError(t, db.Set(ctx, bz("key12"), bz("value12")))  // contained in namespace
-// 	require.NoError(t, db.Set(ctx, bz("key13"), bz("value13")))  // contained in namespace
-// 	require.NoError(t, db.Set(ctx, bz("key2"), bz("value2")))    // contained in namespace
-// 	require.NoError(t, db.Set(ctx, bz("key3"), bz("value3")))    // contained in namespace
-// 	require.NoError(t, db.Set(ctx, bz("key4"), bz("value4")))    // contained in namespace
-// 	require.NoError(t, db.Set(ctx, bz("key5"), bz("value5")))    // contained in namespace
-// 	require.NoError(t, db.Set(ctx, bz("something"), bz("else"))) // after namespace
-// 	require.NoError(t, db.Set(ctx, bz("k"), bz("val")))          // before namespace
-// 	require.NoError(t, db.Set(ctx, bz("ke"), bz("valu")))        // before namespace
-// 	require.NoError(t, db.Set(ctx, bz("kee"), bz("valuu")))      // before namespace
-// }
-
-// func TestIteratorPrefixForwardPrefix(t *testing.T) {
-// 	ctx := context.Background()
-// 	db := NewDatastore(ctx)
-// 	defer db.Close()
-
-// 	loadPrefixData(t, ctx, db)
-
-// 	it := db.Iterator(ctx, corekv.IterOptions{
-// 		Prefix: bz("key"),
-// 	})
-// 	require.NotNil(t, it)
-
-// 	iteratorVerify(t, it, [][2]string{
-// 		{"key1", "value1"},
-// 		{"key11", "value11"},
-// 		{"key12", "value12"},
-// 		{"key13", "value13"},
-// 		{"key2", "value2"},
-// 		{"key3", "value3"},
-// 		{"key4", "value4"},
-// 		{"key5", "value5"},
-// 	}, "prefix forward full")
-// 	require.NoError(t, it.Close(ctx))
-// }
-
-// func TestIteratorPrefixForwardFull(t *testing.T) {
-// 	ctx := context.Background()
-// 	db := NewDatastore(ctx)
-// 	defer db.Close()
-
-// 	loadPrefixData(t, ctx, db)
-
-// 	it := db.Iterator(ctx, corekv.IterOptions{
-// 		Prefix: bz(""),
-// 	})
-// 	require.NotNil(t, it)
-
-// 	iteratorVerify(t, it, [][2]string{
-// 		{"k", "val"},
-// 		{"ke", "valu"},
-// 		{"kee", "valuu"},
-// 		{"key", "value"},
-// 		{"key1", "value1"},
-// 		{"key11", "value11"},
-// 		{"key12", "value12"},
-// 		{"key13", "value13"},
-// 		{"key2", "value2"},
-// 		{"key3", "value3"},
-// 		{"key4", "value4"},
-// 		{"key5", "value5"},
-// 		{"something", "else"},
-// 	}, "prefix forward full")
-// 	require.NoError(t, it.Close(ctx))
-// }
-
-// func TestIteratorPrefixReverseFull(t *testing.T) {
-// 	ctx := context.Background()
-// 	db := NewDatastore(ctx)
-// 	defer db.Close()
-
-// 	loadPrefixData(t, ctx, db)
-
-// 	it := db.Iterator(ctx, corekv.IterOptions{
-// 		Prefix:  bz(""),
-// 		Reverse: true,
-// 	})
-// 	require.NotNil(t, it)
-
-// 	iteratorVerify(t, it, [][2]string{
-// 		{"something", "else"},
-// 		{"key5", "value5"},
-// 		{"key4", "value4"},
-// 		{"key3", "value3"},
-// 		{"key2", "value2"},
-// 		{"key13", "value13"},
-// 		{"key12", "value12"},
-// 		{"key11", "value11"},
-// 		{"key1", "value1"},
-// 		{"key", "value"},
-// 		{"kee", "valuu"},
-// 		{"ke", "valu"},
-// 		{"k", "val"},
-// 	}, "prefix reverse full")
-// 	require.NoError(t, it.Close(ctx))
-// }
-
-// func TestIteratorDefaultOpts(t *testing.T) {
-// 	ctx := context.Background()
-// 	db := NewDatastore(ctx)
-// 	defer db.Close()
-
-// 	loadPrefixData(t, ctx, db)
-
-// 	it := db.Iterator(ctx, corekv.DefaultIterOptions)
-// 	require.NotNil(t, it)
-
-// 	iteratorVerify(t, it, [][2]string{
-// 		{"k", "val"},
-// 		{"ke", "valu"},
-// 		{"kee", "valuu"},
-// 		{"key", "value"},
-// 		{"key1", "value1"},
-// 		{"key11", "value11"},
-// 		{"key12", "value12"},
-// 		{"key13", "value13"},
-// 		{"key2", "value2"},
-// 		{"key3", "value3"},
-// 		{"key4", "value4"},
-// 		{"key5", "value5"},
-// 		{"something", "else"},
-// 	}, "default forward full")
-// 	require.NoError(t, it.Close(ctx))
-// }
 
 // For testing convenience.
 func bz(s string) []byte {
