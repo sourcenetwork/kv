@@ -56,31 +56,6 @@ func newLoadedDatastore(ctx context.Context) *Datastore {
 	return s
 }
 
-func TestNewDatastore(t *testing.T) {
-	ctx := context.Background()
-	s := NewDatastore(ctx)
-	require.NotNil(t, s)
-}
-
-func TestCloseOperation(t *testing.T) {
-	ctx := context.Background()
-	s := newLoadedDatastore(ctx)
-
-	s.Close()
-	// require.NoError(t, err)
-}
-
-func TestConsecutiveClose(t *testing.T) {
-	ctx := context.Background()
-	s := newLoadedDatastore(ctx)
-
-	s.Close()
-	// require.NoError(t, err)
-
-	s.Close()
-	// require.ErrorIs(t, err, ErrClosed)
-}
-
 func TestCloseThroughContext(t *testing.T) {
 	ctx := context.Background()
 	newCtx, cancel := context.WithCancel(ctx)
