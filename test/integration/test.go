@@ -22,7 +22,9 @@ func (test *Test) Execute(t testing.TB) {
 	for _, storeType := range state.StoreTypes {
 		ctx := context.Background()
 
-		test.Actions.Execute(&state.State{
+		actions := prependNewStore(test.Actions)
+
+		actions.Execute(&state.State{
 			Options: state.Options{
 				StoreType: storeType,
 			},
@@ -30,4 +32,33 @@ func (test *Test) Execute(t testing.TB) {
 			Ctx: ctx,
 		})
 	}
+}
+
+// prependNewStore prepends an [*action.NewStore] action to the front of the given
+// action set if the set does not already contain a new store action.
+//
+// This is done so that we don't have to bother adding (and reading) the same action
+// in 99% of our tests.
+func prependNewStore(actions action.Actions) action.Actions {
+	if hasType[*action.NewStore](actions) {
+		return actions
+	}
+
+	result := make(action.Actions, 1, len(actions)+1)
+	result[0] = &action.NewStore{}
+	result = append(result, actions...)
+
+	return result
+}
+
+// hasType returns true if any of the items in the given set are of the given type.
+func hasType[TAction any](actions action.Actions) bool {
+	for _, action := range actions {
+		_, ok := action.(TAction)
+		if ok {
+			return true
+		}
+	}
+
+	return false
 }
