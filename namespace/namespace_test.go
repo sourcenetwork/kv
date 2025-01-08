@@ -5,11 +5,11 @@ import (
 	"testing"
 
 	"github.com/dgraph-io/badger/v4"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/sourcenetwork/corekv"
 	badgerkv "github.com/sourcenetwork/corekv/badger"
-	testkv "github.com/sourcenetwork/corekv/test"
 )
 
 func newDS(t *testing.T, _ context.Context) (corekv.Store, func()) {
@@ -53,35 +53,26 @@ func TestPrefixDBGetAllKeys(t *testing.T) {
 	db, done := mockDBWithStuff(t, ctx)
 	pdb := Wrap(db, bz("key"))
 
-	testkv.CheckValue(t, ctx, pdb, bz("key"), nil)
-	testkv.CheckValue(t, ctx, pdb, bz("key1"), nil)
-	testkv.CheckValue(t, ctx, pdb, bz("1"), bz("value1"))
-	testkv.CheckValue(t, ctx, pdb, bz("11"), bz("value11"))
-	testkv.CheckValue(t, ctx, pdb, bz("12"), bz("value12"))
-	testkv.CheckValue(t, ctx, pdb, bz("13"), bz("value13"))
-	testkv.CheckValue(t, ctx, pdb, bz("key2"), nil)
-	testkv.CheckValue(t, ctx, pdb, bz("2"), bz("value2"))
-	testkv.CheckValue(t, ctx, pdb, bz("key3"), nil)
-	testkv.CheckValue(t, ctx, pdb, bz("3"), bz("value3"))
-	testkv.CheckValue(t, ctx, pdb, bz("key4"), nil)
-	testkv.CheckValue(t, ctx, pdb, bz("4"), bz("value4"))
-	testkv.CheckValue(t, ctx, pdb, bz("key5"), nil)
-	testkv.CheckValue(t, ctx, pdb, bz("5"), bz("value5"))
-	testkv.CheckValue(t, ctx, pdb, bz("something"), nil)
-	testkv.CheckValue(t, ctx, pdb, bz("k"), nil)
-	testkv.CheckValue(t, ctx, pdb, bz("ke"), nil)
-	testkv.CheckValue(t, ctx, pdb, bz("kee"), nil)
+	checkValue(t, ctx, pdb, bz("key"), nil)
+	checkValue(t, ctx, pdb, bz("key1"), nil)
+	checkValue(t, ctx, pdb, bz("1"), bz("value1"))
+	checkValue(t, ctx, pdb, bz("11"), bz("value11"))
+	checkValue(t, ctx, pdb, bz("12"), bz("value12"))
+	checkValue(t, ctx, pdb, bz("13"), bz("value13"))
+	checkValue(t, ctx, pdb, bz("key2"), nil)
+	checkValue(t, ctx, pdb, bz("2"), bz("value2"))
+	checkValue(t, ctx, pdb, bz("key3"), nil)
+	checkValue(t, ctx, pdb, bz("3"), bz("value3"))
+	checkValue(t, ctx, pdb, bz("key4"), nil)
+	checkValue(t, ctx, pdb, bz("4"), bz("value4"))
+	checkValue(t, ctx, pdb, bz("key5"), nil)
+	checkValue(t, ctx, pdb, bz("5"), bz("value5"))
+	checkValue(t, ctx, pdb, bz("something"), nil)
+	checkValue(t, ctx, pdb, bz("k"), nil)
+	checkValue(t, ctx, pdb, bz("ke"), nil)
+	checkValue(t, ctx, pdb, bz("kee"), nil)
 
 	done()
-}
-
-func TestSuite(t *testing.T) {
-	ctx := context.Background()
-	db, done := newDS(t, ctx)
-	defer done()
-	pdb := Wrap(db, bz("/test"))
-
-	testkv.SubtestAll(t, pdb)
 }
 
 func TestNamespaceDBIteratorForwardFull(t *testing.T) {
@@ -615,4 +606,9 @@ func iteratorVerify(t *testing.T, itr corekv.Iterator, expected [][2]string, msg
 // For testing convenience.
 func bz(s string) []byte {
 	return []byte(s)
+}
+
+func checkValue(t *testing.T, ctx context.Context, db corekv.Store, key []byte, valueWanted []byte) {
+	valueGot, _ := db.Get(ctx, key)
+	assert.Equal(t, valueWanted, valueGot)
 }

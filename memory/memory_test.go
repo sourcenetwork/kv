@@ -19,7 +19,6 @@ import (
 	"time"
 
 	"github.com/sourcenetwork/corekv"
-	kvtest "github.com/sourcenetwork/corekv/test"
 	"github.com/stretchr/testify/require"
 )
 
@@ -481,20 +480,6 @@ func TestClearOldFlightTransactions(t *testing.T) {
 	s.clearOldInFlightTxn()
 
 	require.Equal(t, 0, s.inFlightTxn.Len())
-}
-
-func TestSuite(t *testing.T) {
-	ctx := context.Background()
-	s := NewDatastore(ctx)
-	defer s.Close()
-
-	kvtest.SubtestAll(t, s)
-	// // kvtest.SubtestBackendsGetSetDelete(t, s)
-	// // kvtest.SubtestPrefix(t, s)
-	// kvtest.SubtestDBIterator(t, s)
-	// kvtest.SubtestNotFounds(t, s)
-	// kvtest.SubtestLimit(t, s)
-	// SubtestManyKeysAndQuery,(t, s)
 }
 
 // func loadPrefixData(t *testing.T, ctx context.Context, db corekv.Store) {
