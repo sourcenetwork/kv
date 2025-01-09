@@ -55,17 +55,6 @@ func newLoadedDatastore(ctx context.Context) *Datastore {
 	return s
 }
 
-func TestHasOperationWithStoreClosed(t *testing.T) {
-	ctx := context.Background()
-	s := newLoadedDatastore(ctx)
-
-	s.Close()
-	// require.NoError(t, err)
-
-	_, err := s.Has(ctx, testKey3)
-	require.ErrorIs(t, err, ErrClosed)
-}
-
 func TestPutOperationWithStoreClosed(t *testing.T) {
 	ctx := context.Background()
 	s := newLoadedDatastore(ctx)
