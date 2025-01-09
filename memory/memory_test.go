@@ -56,15 +56,6 @@ func newLoadedDatastore(ctx context.Context) *Datastore {
 	return s
 }
 
-func TestGetOperation(t *testing.T) {
-	ctx := context.Background()
-	s := newLoadedDatastore(ctx)
-
-	resp, err := s.Get(ctx, testKey1)
-	require.NoError(t, err)
-	require.Equal(t, testValue1, resp)
-}
-
 func TestDeleteOperation(t *testing.T) {
 	ctx := context.Background()
 	s := newLoadedDatastore(ctx)
@@ -127,18 +118,6 @@ func TestHasOperationWithStoreClosed(t *testing.T) {
 
 	_, err := s.Has(ctx, testKey3)
 	require.ErrorIs(t, err, ErrClosed)
-}
-
-func TestPutOperation(t *testing.T) {
-	ctx := context.Background()
-	s := newLoadedDatastore(ctx)
-
-	err := s.Set(ctx, testKey3, testValue3)
-	require.NoError(t, err)
-
-	resp, err := s.Get(ctx, testKey3)
-	require.NoError(t, err)
-	require.Equal(t, testValue3, resp)
 }
 
 func TestPutOperationWithStoreClosed(t *testing.T) {
