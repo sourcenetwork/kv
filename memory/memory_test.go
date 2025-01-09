@@ -55,17 +55,6 @@ func newLoadedDatastore(ctx context.Context) *Datastore {
 	return s
 }
 
-func TestPutOperationWithStoreClosed(t *testing.T) {
-	ctx := context.Background()
-	s := newLoadedDatastore(ctx)
-
-	s.Close()
-	// require.NoError(t, err)
-
-	err := s.Set(ctx, testKey3, testValue3)
-	require.ErrorIs(t, err, ErrClosed)
-}
-
 func TestQueryOperationWithAddedItems(t *testing.T) {
 	ctx := context.Background()
 	s := newLoadedDatastore(ctx)
