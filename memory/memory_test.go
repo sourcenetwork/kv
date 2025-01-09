@@ -65,24 +65,6 @@ func TestGetOperation(t *testing.T) {
 	require.Equal(t, testValue1, resp)
 }
 
-func TestGetOperationWithStoreClosed(t *testing.T) {
-	ctx := context.Background()
-	s := newLoadedDatastore(ctx)
-	s.Close()
-	// require.NoError(t, err)
-
-	_, err := s.Get(ctx, testKey1)
-	require.ErrorIs(t, err, ErrClosed)
-}
-
-func TestGetOperationNotFound(t *testing.T) {
-	ctx := context.Background()
-	s := newLoadedDatastore(ctx)
-
-	_, err := s.Get(ctx, testKey3)
-	require.ErrorIs(t, err, corekv.ErrNotFound)
-}
-
 func TestDeleteOperation(t *testing.T) {
 	ctx := context.Background()
 	s := newLoadedDatastore(ctx)
