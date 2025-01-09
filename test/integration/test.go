@@ -10,6 +10,13 @@ import (
 
 // Test is a single, self-contained, test.
 type Test struct {
+	// If this set is not empty, only the store types within it will be used to execute
+	// the test.
+	//
+	// This should only be used for temporarily documenting differences between Store
+	// implementations.
+	SupportedStoreTypes []state.StoreType
+
 	// Actions contains the set of actions that should be
 	// executed as part of this test.
 	Actions action.Actions
@@ -20,6 +27,10 @@ type Test struct {
 // It will execute the test against all supported datastore implementations.
 func (test *Test) Execute(t testing.TB) {
 	for _, storeType := range state.StoreTypes {
+		if test.shouldSkipType(storeType) {
+			continue
+		}
+
 		ctx := context.Background()
 		ctx, cancel := context.WithCancel(ctx)
 
@@ -39,6 +50,10 @@ func (test *Test) Execute(t testing.TB) {
 	// As well as testing all supported stores directly, we then retest them namespaced.
 	// This provides us with very cheap test coverage of the namespace store.
 	for _, storeType := range state.StoreTypes {
+		if test.shouldSkipType(storeType) {
+			continue
+		}
+
 		ctx := context.Background()
 		ctx, cancel := context.WithCancel(ctx)
 
@@ -105,6 +120,25 @@ func hasType[TAction any](actions action.Actions) bool {
 	for _, action := range actions {
 		_, ok := action.(TAction)
 		if ok {
+			return true
+		}
+	}
+
+	return false
+}
+
+// shouldSkipType returns true if this store type should be skipped for this test.
+func (test *Test) shouldSkipType(storeType state.StoreType) bool {
+	if len(test.SupportedStoreTypes) > 0 {
+		isSupported := false
+		for _, supportedType := range test.SupportedStoreTypes {
+			if storeType == supportedType {
+				isSupported = true
+				break
+			}
+		}
+
+		if !isSupported {
 			return true
 		}
 	}
