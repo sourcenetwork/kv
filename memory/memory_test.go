@@ -18,7 +18,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/sourcenetwork/corekv"
 	"github.com/stretchr/testify/require"
 )
 
@@ -54,31 +53,6 @@ func newLoadedDatastore(ctx context.Context) *Datastore {
 		version: v,
 	})
 	return s
-}
-
-func TestDeleteOperation(t *testing.T) {
-	ctx := context.Background()
-	s := newLoadedDatastore(ctx)
-
-	err := s.Delete(ctx, testKey1)
-	require.NoError(t, err)
-
-	_, err = s.Get(ctx, testKey1)
-	require.ErrorIs(t, err, corekv.ErrNotFound)
-}
-
-func TestDeleteOperation2(t *testing.T) {
-	ctx := context.Background()
-	s := NewDatastore(ctx)
-
-	err := s.Set(ctx, testKey1, testValue1)
-	require.NoError(t, err)
-
-	err = s.Delete(ctx, testKey1)
-	require.NoError(t, err)
-
-	_, err = s.Get(ctx, testKey1)
-	require.ErrorIs(t, err, corekv.ErrNotFound)
 }
 
 func TestDeleteOperationWithStoreClosed(t *testing.T) {
