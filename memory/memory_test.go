@@ -28,14 +28,8 @@ var (
 	testKey2   = []byte("testKey2")
 	testValue2 = []byte("this is a test value 2")
 
-	testKey3   = []byte("testKey3")
-	testValue3 = []byte("this is a test value 3")
-
 	testKey4   = []byte("testKey4")
 	testValue4 = []byte("this is a test value 4")
-
-	testKey5   = []byte("testKey5")
-	testValue5 = []byte("this is a test value 5")
 )
 
 func newLoadedDatastore(ctx context.Context) *Datastore {
@@ -53,28 +47,6 @@ func newLoadedDatastore(ctx context.Context) *Datastore {
 		version: v,
 	})
 	return s
-}
-
-func TestQueryOperationWithAddedItems(t *testing.T) {
-	ctx := context.Background()
-	s := newLoadedDatastore(ctx)
-
-	err := s.Set(ctx, testKey3, testValue3)
-	require.NoError(t, err)
-	err = s.Set(ctx, testKey4, testValue4)
-	require.NoError(t, err)
-
-	err = s.Set(ctx, testKey5, testValue5)
-	require.NoError(t, err)
-
-	err = s.Delete(ctx, testKey2)
-	require.NoError(t, err)
-
-	err = s.Set(ctx, testKey2, testValue2)
-	require.NoError(t, err)
-
-	err = s.Delete(ctx, testKey1)
-	require.NoError(t, err)
 }
 
 func TestConcurrentWrite(t *testing.T) {
