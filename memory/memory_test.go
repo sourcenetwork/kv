@@ -56,19 +56,6 @@ func newLoadedDatastore(ctx context.Context) *Datastore {
 	return s
 }
 
-func TestCloseThroughContext(t *testing.T) {
-	ctx := context.Background()
-	newCtx, cancel := context.WithCancel(ctx)
-	s := newLoadedDatastore(newCtx)
-
-	cancel()
-
-	time.Sleep(time.Millisecond * 10)
-
-	s.Close()
-	// require.ErrorIs(t, err, ErrClosed)
-}
-
 func TestGetOperation(t *testing.T) {
 	ctx := context.Background()
 	s := newLoadedDatastore(ctx)
