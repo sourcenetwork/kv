@@ -21,6 +21,7 @@ type Test struct {
 func (test *Test) Execute(t testing.TB) {
 	for _, storeType := range state.StoreTypes {
 		ctx := context.Background()
+		ctx, cancel := context.WithCancel(ctx)
 
 		actions := prependNewStore(test.Actions)
 		actions = appendCloseStore(actions)
@@ -29,8 +30,9 @@ func (test *Test) Execute(t testing.TB) {
 			Options: state.Options{
 				StoreType: storeType,
 			},
-			T:   t,
-			Ctx: ctx,
+			T:         t,
+			Ctx:       ctx,
+			CtxCancel: cancel,
 		})
 	}
 
@@ -38,6 +40,7 @@ func (test *Test) Execute(t testing.TB) {
 	// This provides us with very cheap test coverage of the namespace store.
 	for _, storeType := range state.StoreTypes {
 		ctx := context.Background()
+		ctx, cancel := context.WithCancel(ctx)
 
 		actions := prependNamespaceStore(test.Actions)
 		actions = prependNewStore(actions)
@@ -47,8 +50,9 @@ func (test *Test) Execute(t testing.TB) {
 			Options: state.Options{
 				StoreType: storeType,
 			},
-			T:   t,
-			Ctx: ctx,
+			T:         t,
+			Ctx:       ctx,
+			CtxCancel: cancel,
 		})
 	}
 }

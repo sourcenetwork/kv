@@ -9,8 +9,9 @@ import (
 
 // State holds the current execution state of a set of [action.Actions].
 type State struct {
-	T   testing.TB
-	Ctx context.Context
+	T         testing.TB
+	Ctx       context.Context
+	CtxCancel context.CancelFunc
 
 	// The immutable [Options] used to initialize this state.
 	Options Options
