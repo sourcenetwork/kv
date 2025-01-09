@@ -33,6 +33,24 @@ func (test *Test) Execute(t testing.TB) {
 			Ctx: ctx,
 		})
 	}
+
+	// As well as testing all supported stores directly, we then retest them namespaced.
+	// This provides us with very cheap test coverage of the namespace store.
+	for _, storeType := range state.StoreTypes {
+		ctx := context.Background()
+
+		actions := prependNamespaceStore(test.Actions)
+		actions = prependNewStore(actions)
+		actions = appendCloseStore(actions)
+
+		actions.Execute(&state.State{
+			Options: state.Options{
+				StoreType: storeType,
+			},
+			T:   t,
+			Ctx: ctx,
+		})
+	}
 }
 
 // prependNewStore prepends an [*action.NewStore] action to the front of the given
@@ -47,6 +65,18 @@ func prependNewStore(actions action.Actions) action.Actions {
 
 	result := make(action.Actions, 1, len(actions)+1)
 	result[0] = &action.NewStore{}
+	result = append(result, actions...)
+
+	return result
+}
+
+// prependNewStore prepends an [*action.NewStore] action to the front of the given
+// action set.
+//
+// This will be done whether or not there are existing namespace actions in the set or not.
+func prependNamespaceStore(actions action.Actions) action.Actions {
+	result := make(action.Actions, 1, len(actions)+1)
+	result[0] = action.Namespace([]byte("/example"))
 	result = append(result, actions...)
 
 	return result
