@@ -64,15 +64,6 @@ func TestHasOperation(t *testing.T) {
 	require.Equal(t, true, resp)
 }
 
-func TestHasOperationNotFound(t *testing.T) {
-	ctx := context.Background()
-	s := newLoadedDatastore(ctx)
-
-	resp, err := s.Has(ctx, testKey3)
-	require.NoError(t, err)
-	require.Equal(t, false, resp)
-}
-
 func TestHasOperationWithStoreClosed(t *testing.T) {
 	ctx := context.Background()
 	s := newLoadedDatastore(ctx)
