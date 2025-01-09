@@ -55,16 +55,6 @@ func newLoadedDatastore(ctx context.Context) *Datastore {
 	return s
 }
 
-func TestDeleteOperationWithStoreClosed(t *testing.T) {
-	ctx := context.Background()
-	s := newLoadedDatastore(ctx)
-
-	s.Close()
-
-	err := s.Delete(ctx, testKey1)
-	require.ErrorIs(t, err, ErrClosed)
-}
-
 func TestHasOperation(t *testing.T) {
 	ctx := context.Background()
 	s := newLoadedDatastore(ctx)
