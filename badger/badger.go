@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"strings"
 
 	"github.com/dgraph-io/badger/v4"
 
@@ -334,6 +335,7 @@ var badgerErrToKVErrMap = map[error]error{
 	badger.ErrEmptyKey:     corekv.ErrEmptyKey,
 	badger.ErrKeyNotFound:  corekv.ErrNotFound,
 	badger.ErrDiscardedTxn: corekv.ErrDiscardedTxn,
+	badger.ErrDBClosed:     corekv.ErrDBClosed,
 }
 
 func badgerErrToKVErr(err error) error {
@@ -352,6 +354,12 @@ func badgerErrToKVErr(err error) error {
 			mappedErr = corekv.ErrEmptyKey
 		case errors.Is(err, badger.ErrKeyNotFound):
 			mappedErr = corekv.ErrNotFound
+		case errors.Is(err, badger.ErrDBClosed):
+			mappedErr = corekv.ErrDBClosed
+		// Annoyingly, badger's error wrapping seems to break `errors.Is`, so we have to
+		// check the string
+		case strings.Contains(err.Error(), badger.ErrDBClosed.Error()):
+			mappedErr = corekv.ErrDBClosed
 		default:
 			return err // no mapping needed atm
 		}
