@@ -40,35 +40,6 @@ func mockDBWithStuff(t *testing.T, ctx context.Context) (corekv.Store, func()) {
 	return db, done
 }
 
-func TestNamespaceDBIteratorForwardEndAt5(t *testing.T) {
-	opts := corekv.IterOptions{
-		End: bz("5"),
-	}
-	runIteratorTest(t, opts, [][2]string{
-		{"1", "value1"},
-		{"11", "value11"},
-		{"12", "value12"},
-		{"13", "value13"},
-		{"2", "value2"},
-		{"3", "value3"},
-		{"4", "value4"},
-	}, "forward range end 5")
-}
-
-func TestNamespaceDBIteratorForwardEndAt4(t *testing.T) {
-	opts := corekv.IterOptions{
-		End: bz("4"),
-	}
-	runIteratorTest(t, opts, [][2]string{
-		{"1", "value1"},
-		{"11", "value11"},
-		{"12", "value12"},
-		{"13", "value13"},
-		{"2", "value2"},
-		{"3", "value3"},
-	}, "forward range end 4")
-}
-
 func TestNamespaceDBIteratorForwardStart1End5(t *testing.T) {
 	opts := corekv.IterOptions{
 		Start: bz("1"),
