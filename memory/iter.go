@@ -133,6 +133,11 @@ func (iter *dsPrefixIter) loadLatestItem() {
 	}
 
 	if curItem.isDeleted {
+		iter.curItem = nil
+
+		if iter.it.Next() {
+			iter.loadLatestItem()
+		}
 		return
 	}
 	iter.curItem = &curItem
