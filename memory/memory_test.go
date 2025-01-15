@@ -123,8 +123,3 @@ func TestClearOldFlightTransactions(t *testing.T) {
 
 	require.Equal(t, 0, s.inFlightTxn.Len())
 }
-
-// For testing convenience.
-func bz(s string) []byte {
-	return []byte(s)
-}
