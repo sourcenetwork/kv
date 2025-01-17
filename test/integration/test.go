@@ -8,6 +8,21 @@ import (
 	"github.com/sourcenetwork/corekv/test/state"
 )
 
+type NamespaceType int
+
+const (
+	// Automatically execute the test with a namespaced store, as well the standard
+	// unnamespaced store.
+	Automatic = 0
+
+	// Disable the automatic wrapping of the store in a namespace.  Manually defined
+	// namespace actions will still execute.
+	ManualOnly = 1
+
+	// Disables testing without the automatically provided namespace.
+	AutomaticForced = 2
+)
+
 // Test is a single, self-contained, test.
 type Test struct {
 	// If this set is not empty, only the store types within it will be used to execute
@@ -16,6 +31,12 @@ type Test struct {
 	// This should only be used for temporarily documenting differences between Store
 	// implementations.
 	SupportedStoreTypes []state.StoreType
+
+	// Namespacing controls automatic namespacing of test actions.
+	//
+	// This should only be used for temporarily documenting differences between Store
+	// implementations.
+	Namespacing NamespaceType
 
 	// Actions contains the set of actions that should be
 	// executed as part of this test.
@@ -26,49 +47,53 @@ type Test struct {
 //
 // It will execute the test against all supported datastore implementations.
 func (test *Test) Execute(t testing.TB) {
-	for _, storeType := range state.StoreTypes {
-		if test.shouldSkipType(storeType) {
-			continue
+	if test.Namespacing != AutomaticForced {
+		for _, storeType := range state.StoreTypes {
+			if test.shouldSkipType(storeType) {
+				continue
+			}
+
+			ctx := context.Background()
+			ctx, cancel := context.WithCancel(ctx)
+
+			actions := prependNewStore(test.Actions)
+			actions = appendCloseStore(actions)
+
+			actions.Execute(&state.State{
+				Options: state.Options{
+					StoreType: storeType,
+				},
+				T:         t,
+				Ctx:       ctx,
+				CtxCancel: cancel,
+			})
 		}
-
-		ctx := context.Background()
-		ctx, cancel := context.WithCancel(ctx)
-
-		actions := prependNewStore(test.Actions)
-		actions = appendCloseStore(actions)
-
-		actions.Execute(&state.State{
-			Options: state.Options{
-				StoreType: storeType,
-			},
-			T:         t,
-			Ctx:       ctx,
-			CtxCancel: cancel,
-		})
 	}
 
-	// As well as testing all supported stores directly, we then retest them namespaced.
-	// This provides us with very cheap test coverage of the namespace store.
-	for _, storeType := range state.StoreTypes {
-		if test.shouldSkipType(storeType) {
-			continue
+	if test.Namespacing != ManualOnly {
+		// As well as testing all supported stores directly, we then retest them namespaced.
+		// This provides us with very cheap test coverage of the namespace store.
+		for _, storeType := range state.StoreTypes {
+			if test.shouldSkipType(storeType) {
+				continue
+			}
+
+			ctx := context.Background()
+			ctx, cancel := context.WithCancel(ctx)
+
+			actions := prependNamespaceStore(test.Actions)
+			actions = prependNewStore(actions)
+			actions = appendCloseStore(actions)
+
+			actions.Execute(&state.State{
+				Options: state.Options{
+					StoreType: storeType,
+				},
+				T:         t,
+				Ctx:       ctx,
+				CtxCancel: cancel,
+			})
 		}
-
-		ctx := context.Background()
-		ctx, cancel := context.WithCancel(ctx)
-
-		actions := prependNamespaceStore(test.Actions)
-		actions = prependNewStore(actions)
-		actions = appendCloseStore(actions)
-
-		actions.Execute(&state.State{
-			Options: state.Options{
-				StoreType: storeType,
-			},
-			T:         t,
-			Ctx:       ctx,
-			CtxCancel: cancel,
-		})
 	}
 }
 
