@@ -38,16 +38,7 @@ func newPrefixIter(ctx context.Context, db *Datastore, prefix []byte, reverse bo
 		reverse: reverse,
 	}
 	if reverse {
-		if len(prefix) > 0 {
-			pIter.Seek(bytesPrefixEnd(prefix))
-			// Seek is equal to or greater, and the bytesPrefixEnd is the
-			// exact largest value before the prefix is invalid, so we likely
-			// don't match any exact key. Therefore the seek will go past
-			// our desired prefix, and will need to backup one entry.
-			if !validForPrefix(pIter.curItem, prefix) {
-				pIter.Next()
-			}
-		}
+		pIter.Seek(bytesPrefixEnd(prefix))
 	} else {
 		pIter.Seek(prefix)
 	}
