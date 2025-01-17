@@ -33,7 +33,7 @@ func newPrefixIter(ctx context.Context, db *Datastore, prefix []byte, reverse bo
 		ctx:     ctx,
 		db:      db,
 		version: version,
-		it:      newBaseIterator(db.values, reverse),
+		it:      newBaseIterator(db.values, reverse, prefix, bytesPrefixEnd(prefix)),
 		prefix:  prefix,
 		reverse: reverse,
 	}
@@ -153,7 +153,15 @@ func (iter *dsPrefixIter) loadLatestItem() {
 }
 
 type baseIterator struct {
-	it      btree.IterG[dsItem]
+	it btree.IterG[dsItem]
+
+	// The smallest key that is valid (inclusive bound) for this iterator to return
+	lowerBound []byte
+
+	// The smallest key that is invalid (exclusive bound) for this iterator to return.
+	upperBound []byte
+
+	// If true, this iterator should be yielding items in reverse order.
 	reverse bool
 }
 
@@ -162,7 +170,7 @@ func newRangeIter(ctx context.Context, db *Datastore, start, end []byte, reverse
 		ctx:     ctx,
 		db:      db,
 		version: version,
-		it:      newBaseIterator(db.values, reverse),
+		it:      newBaseIterator(db.values, reverse, start, end),
 		start:   start,
 		end:     end,
 		reverse: reverse,
@@ -170,11 +178,6 @@ func newRangeIter(ctx context.Context, db *Datastore, start, end []byte, reverse
 
 	if len(end) > 0 && reverse {
 		rIter.Seek(end)
-		// end in range is exclusive, so we need to make sure to iterate
-		// back till we are *before* the end target
-		for rIter.curItem != nil && bytes.Compare(rIter.Key(), end) >= 0 {
-			rIter.Next()
-		}
 	} else if len(start) > 0 && !reverse {
 		rIter.Seek(start)
 	}
@@ -270,7 +273,7 @@ func (iter *dsRangeIter) loadLatestItem() {
 	iter.curItem = &curItem
 }
 
-func newBaseIterator(bt *btree.BTreeG[dsItem], reverse bool) *baseIterator {
+func newBaseIterator(bt *btree.BTreeG[dsItem], reverse bool, lowerBound []byte, upperBound []byte) *baseIterator {
 	bit := bt.Iter()
 	if reverse {
 		bit.Last()
@@ -279,8 +282,10 @@ func newBaseIterator(bt *btree.BTreeG[dsItem], reverse bool) *baseIterator {
 	}
 
 	return &baseIterator{
-		it:      bit,
-		reverse: reverse,
+		it:         bit,
+		upperBound: upperBound,
+		lowerBound: lowerBound,
+		reverse:    reverse,
 	}
 }
 
@@ -303,6 +308,38 @@ func (bit *baseIterator) Item() dsItem {
 }
 
 func (bit *baseIterator) Seek(key dsItem) bool {
+	if bit.reverse {
+		// Unfortunately the BTree iterator doesn't provide a reversed seek, so we have to
+		// do a bit of work ourselves here if iterating in reverse.
+
+		if bit.upperBound == nil {
+			// If no upper bound has been provided, e.g. via an `End` or `Prefix` option
+			// we can just return the last item in the BTree.
+			return bit.it.Last()
+		}
+
+		hasItems := bit.it.Seek(dsItem{key: bit.upperBound, version: key.version})
+		if hasItems {
+			// If the BTree iterator `Seek` finds an item, it must be equal or greater than
+			// our upper bound.  The previous item key must then be less than our upper bound.
+			hasItems = bit.it.Prev()
+		}
+
+		if !hasItems {
+			// If no items were found above or on the upper bound, we can move to the end of the
+			// BTree.
+			hasItems = bit.it.Last()
+		}
+
+		if !hasItems {
+			// If there are no items found at this point, it means the store is empty.
+			return false
+		}
+
+		// Only return true if the item is within the lower bound.
+		return bit.lowerBound != nil && gte(bit.it.Item().key, bit.lowerBound)
+	}
+
 	return bit.it.Seek(key)
 }
 

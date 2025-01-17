@@ -54,7 +54,6 @@ func TestIteratorReverseNextValid_MemoryUnnamespaced(t *testing.T) {
 		SupportedStoreTypes: []state.StoreType{
 			state.MemoryStoreType,
 		},
-		Namespacing: integration.ManualOnly,
 		Actions: []action.Action{
 			action.Set([]byte("k1"), []byte("v1")),
 			action.Set([]byte("k3"), nil),
@@ -73,46 +72,6 @@ func TestIteratorReverseNextValid_MemoryUnnamespaced(t *testing.T) {
 					action.IsInvalid(),
 					action.Next(),
 					action.IsInvalid(),
-				},
-			},
-		},
-	}
-
-	test.Execute(t)
-}
-
-// This test documents undesirable behaviour, issue:
-// https://github.com/sourcenetwork/corekv/issues/11
-func TestIteratorReverseNextValid_MemoryNamespaced(t *testing.T) {
-	test := &integration.Test{
-		SupportedStoreTypes: []state.StoreType{
-			state.MemoryStoreType,
-		},
-		Namespacing: integration.AutomaticForced,
-		Actions: []action.Action{
-			action.Set([]byte("k1"), []byte("v1")),
-			action.Set([]byte("k3"), nil),
-			action.Set([]byte("k4"), []byte("v4")),
-			action.Set([]byte("k2"), []byte("v2")),
-			&action.Iterator{
-				IterOptions: corekv.IterOptions{
-					Reverse: true,
-				},
-				ChildActions: []action.IteratorAction{
-					action.IsInvalid(),
-					action.Next(),
-					action.IsValid(),
-					action.Next(),
-					action.IsValid(),
-					action.Next(),
-					action.IsValid(),
-					action.Next(),
-					action.IsValid(),
-					action.Next(),
-					action.IsValid(),
-					// etc...
-					// The first call(s) to `Valid` will return false, and then will forever return `true`
-					// on item iteration
 				},
 			},
 		},

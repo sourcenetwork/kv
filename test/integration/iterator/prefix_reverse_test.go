@@ -6,14 +6,10 @@ import (
 	"github.com/sourcenetwork/corekv"
 	"github.com/sourcenetwork/corekv/test/action"
 	"github.com/sourcenetwork/corekv/test/integration"
-	"github.com/sourcenetwork/corekv/test/state"
 )
 
-func TestIteratorPrefixReverse_Badger(t *testing.T) {
+func TestIteratorPrefixReverse(t *testing.T) {
 	test := &integration.Test{
-		SupportedStoreTypes: []state.StoreType{
-			state.BadgerStoreType,
-		},
 		Actions: []action.Action{
 			action.Set([]byte("1"), []byte("v1")),
 			action.Set([]byte("k3"), nil),
@@ -27,36 +23,6 @@ func TestIteratorPrefixReverse_Badger(t *testing.T) {
 				Expected: []action.KeyValue{
 					// `4` must not be yielded
 					{Key: []byte("k3"), Value: nil},
-					{Key: []byte("k2"), Value: []byte("v2")},
-					// `1` must not be yielded
-				},
-			},
-		},
-	}
-
-	test.Execute(t)
-}
-
-// This test documents undesirable behaviour, issue:
-// https://github.com/sourcenetwork/defradb/issues/3384
-func TestIteratorPrefixReverse_Memory(t *testing.T) {
-	test := &integration.Test{
-		SupportedStoreTypes: []state.StoreType{
-			state.MemoryStoreType,
-		},
-		Actions: []action.Action{
-			action.Set([]byte("1"), []byte("v1")),
-			action.Set([]byte("k3"), nil),
-			action.Set([]byte("4"), []byte("v4")),
-			action.Set([]byte("k2"), []byte("v2")),
-			&action.Iterate{
-				IterOptions: corekv.IterOptions{
-					Reverse: true,
-					Prefix:  []byte("k"),
-				},
-				Expected: []action.KeyValue{
-					// `4` must not be yielded
-					// Note: `k3` is not returned, although it should be.
 					{Key: []byte("k2"), Value: []byte("v2")},
 					// `1` must not be yielded
 				},

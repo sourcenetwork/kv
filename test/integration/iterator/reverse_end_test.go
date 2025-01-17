@@ -31,3 +31,23 @@ func TestIteratorReverseEnd(t *testing.T) {
 
 	test.Execute(t)
 }
+
+// Due to the way the memory iterator is coded in `Seek` it would not be impossible for a coding mistake to
+// result in store with a single item greater/equal to than the iterator `End` to be erroneously yieled when
+// reversing.
+func TestIteratorReverseEnd_SingleItemOutOfBounds(t *testing.T) {
+	test := &integration.Test{
+		Actions: []action.Action{
+			action.Set([]byte("k3"), nil),
+			&action.Iterate{
+				IterOptions: corekv.IterOptions{
+					Reverse: true,
+					End:     []byte("k3"),
+				},
+				Expected: []action.KeyValue{},
+			},
+		},
+	}
+
+	test.Execute(t)
+}
