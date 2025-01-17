@@ -52,10 +52,6 @@ func newPrefixIter(ctx context.Context, db *Datastore, prefix []byte, reverse bo
 		pIter.Seek(prefix)
 	}
 
-	// load first item. Seek will also load, so this may be a duplicate
-	// action, but this is idempotent so its OK.
-	pIter.loadLatestItem()
-
 	// if the first key is an exact match to the prefix, skip next
 	// since prefix is a *strict* subset prefix
 	if pIter.curItem != nil && bytes.Equal(pIter.Key(), prefix) {
@@ -137,6 +133,11 @@ func (iter *dsPrefixIter) loadLatestItem() {
 	}
 
 	if curItem.isDeleted {
+		iter.curItem = nil
+
+		if iter.it.Next() {
+			iter.loadLatestItem()
+		}
 		return
 	}
 	iter.curItem = &curItem
@@ -241,6 +242,11 @@ func (iter *dsRangeIter) loadLatestItem() {
 	}
 
 	if curItem.isDeleted {
+		iter.curItem = nil
+
+		if iter.it.Next() {
+			iter.loadLatestItem()
+		}
 		return
 	}
 	iter.curItem = &curItem
