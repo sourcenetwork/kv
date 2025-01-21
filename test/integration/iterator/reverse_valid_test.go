@@ -20,7 +20,7 @@ func TestIteratorReverseValid_Badger(t *testing.T) {
 				IterOptions: corekv.IterOptions{
 					Reverse: true,
 				},
-				Actions: []action.IteratorAction{
+				ChildActions: []action.IteratorAction{
 					action.IsValid(),
 				},
 			},
@@ -42,7 +42,7 @@ func TestIteratorReverseValid_MemoryUnnamespaced(t *testing.T) {
 				IterOptions: corekv.IterOptions{
 					Reverse: true,
 				},
-				Actions: []action.IteratorAction{
+				ChildActions: []action.IteratorAction{
 					action.IsValid(),
 				},
 			},
@@ -66,7 +66,7 @@ func TestIteratorReverseValid_MemoryNamespaced(t *testing.T) {
 				IterOptions: corekv.IterOptions{
 					Reverse: true,
 				},
-				Actions: []action.IteratorAction{
+				ChildActions: []action.IteratorAction{
 					action.IsInvalid(),
 				},
 			},

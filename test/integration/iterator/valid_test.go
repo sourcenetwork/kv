@@ -12,7 +12,7 @@ func TestIteratorValid(t *testing.T) {
 		Actions: []action.Action{
 			action.Set([]byte("k1"), []byte("v1")),
 			&action.Iterator{
-				Actions: []action.IteratorAction{
+				ChildActions: []action.IteratorAction{
 					action.IsValid(),
 				},
 			},

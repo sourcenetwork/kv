@@ -19,7 +19,7 @@ func TestIteratorReverseSeekValid(t *testing.T) {
 				IterOptions: corekv.IterOptions{
 					Reverse: true,
 				},
-				Actions: []action.IteratorAction{
+				ChildActions: []action.IteratorAction{
 					action.Seek([]byte("k2")),
 					action.IsValid(),
 				},

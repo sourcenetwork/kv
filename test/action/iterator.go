@@ -12,7 +12,7 @@ type Iterator struct {
 	corekv.IterOptions
 
 	// The actions to execute on the created iterator.
-	Actions []IteratorAction
+	ChildActions []IteratorAction
 }
 
 var _ Action = (*Iterator)(nil)
@@ -20,7 +20,7 @@ var _ Action = (*Iterator)(nil)
 func (a *Iterator) Execute(s *state.State) {
 	iterator := s.Store.Iterator(s.Ctx, a.IterOptions)
 
-	for _, action := range a.Actions {
+	for _, action := range a.ChildActions {
 		action.Execute(s, iterator)
 	}
 

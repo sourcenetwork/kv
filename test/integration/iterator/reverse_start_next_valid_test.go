@@ -24,7 +24,7 @@ func TestIteratorReverseStartNextValid_Badger(t *testing.T) {
 					Reverse: true,
 					Start:   []byte("k2"),
 				},
-				Actions: []action.IteratorAction{
+				ChildActions: []action.IteratorAction{
 					action.Next(),
 					action.Next(),
 					action.IsValid(),
@@ -56,7 +56,7 @@ func TestIteratorReverseStartNextValid_MemoryUnnamespaced(t *testing.T) {
 					Reverse: true,
 					Start:   []byte("k2"),
 				},
-				Actions: []action.IteratorAction{
+				ChildActions: []action.IteratorAction{
 					action.Next(),
 					action.Next(),
 					action.IsValid(),
@@ -90,7 +90,7 @@ func TestIteratorReverseStartNextValid_MemoryNamespaced(t *testing.T) {
 					Reverse: true,
 					Start:   []byte("k2"),
 				},
-				Actions: []action.IteratorAction{
+				ChildActions: []action.IteratorAction{
 					action.Next(),
 					action.Next(),
 					action.IsValid(),

@@ -21,7 +21,7 @@ func TestIteratorPrefixReverseValid_Badger(t *testing.T) {
 					Reverse: true,
 					Prefix:  []byte("k"),
 				},
-				Actions: []action.IteratorAction{
+				ChildActions: []action.IteratorAction{
 					action.IsValid(),
 				},
 			},
@@ -45,7 +45,7 @@ func TestIteratorPrefixReverseValid_Memory(t *testing.T) {
 					Reverse: true,
 					Prefix:  []byte("k"),
 				},
-				Actions: []action.IteratorAction{
+				ChildActions: []action.IteratorAction{
 					action.IsInvalid(),
 				},
 			},
