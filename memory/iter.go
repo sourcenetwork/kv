@@ -140,6 +140,15 @@ func (iter *dsPrefixIter) loadLatestItem() {
 		}
 		return
 	}
+
+	if len(curItem.key) == 0 {
+		// If the current item doesn't exist, explicitly set the current item to nil
+		// instead of a default value, this saves us from having to check the length
+		// of the `curItem.key` property everywhere.
+		iter.curItem = nil
+		return
+	}
+
 	iter.curItem = &curItem
 }
 
@@ -249,6 +258,15 @@ func (iter *dsRangeIter) loadLatestItem() {
 		}
 		return
 	}
+
+	if len(curItem.key) == 0 {
+		// If the current item doesn't exist, explicitly set the current item to nil
+		// instead of a default value, this saves us from having to check the length
+		// of the `curItem.key` property everywhere.
+		iter.curItem = nil
+		return
+	}
+
 	iter.curItem = &curItem
 }
 
