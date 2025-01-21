@@ -6,15 +6,10 @@ import (
 	"github.com/sourcenetwork/corekv"
 	"github.com/sourcenetwork/corekv/test/action"
 	"github.com/sourcenetwork/corekv/test/integration"
-	"github.com/sourcenetwork/corekv/test/state"
 )
 
 func TestIteratorReverse(t *testing.T) {
 	test := &integration.Test{
-		SupportedStoreTypes: []state.StoreType{
-			state.MemoryStoreType,
-		},
-		Namespacing: integration.AutomaticForced,
 		Actions: []action.Action{
 			action.Set([]byte("k1"), []byte("v1")),
 			action.Set([]byte("k3"), nil),
