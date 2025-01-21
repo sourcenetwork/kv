@@ -16,3 +16,7 @@ test\:ci:
 # We do not make the deps here, the ci does that seperately to avoid compiling stuff
 # multiple times etc.
 	gotestsum --format testname ./...
+
+.PHONY: test\:scripts
+test\:scripts:
+	@$(MAKE) -C ./tools/scripts/ test
