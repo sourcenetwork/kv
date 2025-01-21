@@ -6,8 +6,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// Iterate action will create an iterator, execute the given child actions on the iterator,
-// then release the iterator when this action is executed.
+// Iterator action will create an iterator, execute the given child actions on the iterator,
+// then release the iterator when this [Iterator] action is executed.
 type Iterator struct {
 	corekv.IterOptions
 
