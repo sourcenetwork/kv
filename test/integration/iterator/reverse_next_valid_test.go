@@ -49,7 +49,7 @@ func TestIteratorReverseNextValid_Badger(t *testing.T) {
 	)
 }
 
-func TestIteratorReverseNextValid_MemoryUnnamespaced(t *testing.T) {
+func TestIteratorReverseNextValid_Memory(t *testing.T) {
 	test := &integration.Test{
 		SupportedStoreTypes: []state.StoreType{
 			state.MemoryStoreType,
