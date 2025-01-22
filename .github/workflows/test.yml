@@ -1,0 +1,39 @@
+name: Test Workflow
+
+on:
+  pull_request:
+    branches:
+      - main
+
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+    branches:
+      - main
+
+jobs:
+  run-tests:
+    name: Run tests job
+
+    strategy:
+        matrix:
+          os: [ubuntu-latest, windows-latest, macos-latest]
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout code into the directory
+        uses: actions/checkout@v3
+
+      - name: Setup Go environment explicitly
+        uses: actions/setup-go@v3
+        with:
+          go-version: "1.21"
+          check-latest: true
+
+      - name: Build dependencies
+        run: |
+          make deps:test-ci
+
+      - name: Run tests
+        run: make test:ci
