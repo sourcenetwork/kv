@@ -10,28 +10,50 @@ import "context"
 // different behavior.
 var DefaultIterOptions = IterOptions{}
 
+// IterOptions contains the full set of available iterator options,
+// it can be provided when creating an [Iterator] from a [Store].
 type IterOptions struct {
-	// Prefix iteration, all keys *must* contain
-	// the designated prefix. Prefix takes precendent
-	// over range (start/end).
+	// Prefix iteration, only keys beginning with the designated prefix
+	// with the given prefix will be yielded.
+	//
+	// Keys exactly matching the provided `Prefix` value will not be
+	// yielded.
+	//
+	// Providing a Prefix value should cause the Start and End options
+	// to be ignored, although this is currently untested:
+	// https://github.com/sourcenetwork/corekv/issues/35
 	Prefix []byte
 
-	// Range iteration from start (inclusive) to end explusive.
-	// Start must be lexigraphically less
-	// then end, unless `nil` is used.
+	// If Prefix is nil, and Start is provided, the iterator will
+	// only yield items with a key lexographically greater than or
+	// equal to this value.
 	//
-	// Start defined as nil will iterate from the first
-	// key in the store.
-	// End defined as nil will iterate till the last key
-	// in the store.
+	// Providing an `End` value equal to or smaller than this value
+	// will result in undefined behaviour:
+	// https://github.com/sourcenetwork/corekv/issues/32
 	Start []byte
-	End   []byte
 
-	// Reverse the direction of the iteration.
+	// If Prefix is nil, and Start is provided, the iterator will
+	// only yield items with a key lexographically smaller than this
+	// value.
+	//
+	// Providing an End value equal to or smaller than Start
+	// will result in undefined behaviour:
+	// https://github.com/sourcenetwork/corekv/issues/32
+	End []byte
+
+	// Reverse the direction of the iteration, returning items in
+	// lexographically descending order of their keys.
 	Reverse bool
 
-	// Only iterate through keys. Calling Value() on the
-	// iterator *must* return nil (no error).
+	// Only iterate through keys. Calling Value on the
+	// iterator will return nil and no error.
+	//
+	// This option is currently untested:
+	// https://github.com/sourcenetwork/corekv/issues/34
+	//
+	// It is very likely ignored for the memory store iteration:
+	// https://github.com/sourcenetwork/corekv/issues/33
 	KeysOnly bool
 }
 
