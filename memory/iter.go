@@ -50,7 +50,7 @@ func newPrefixIter(db *Datastore, prefix []byte, reverse bool, version uint64) *
 		it:      it,
 		start:   start,
 		end:     end,
-		// A prefix iterator should not return a key exactly matching itself.
+		// A prefix iterator must not return a key exactly matching itself.
 		isStartInclusive: false,
 		reverse:          reverse,
 		hasItem:          hasItem,
