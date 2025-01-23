@@ -57,41 +57,108 @@ type IterOptions struct {
 	KeysOnly bool
 }
 
+// Reader contains read-only functions for interacting with a store.
 type Reader interface {
+	// Get returns the value at the given key.
+	//
+	// If no item with the given key is found, nil, and an [ErrNotFound]
+	// error will be returned.
 	Get(ctx context.Context, key []byte) ([]byte, error)
+
+	// Has returns true if an item at the given key is found, otherwise
+	// will return false.
 	Has(ctx context.Context, key []byte) (bool, error)
+
+	// Iterator returns a read-only iterator using the given options.
 	Iterator(ctx context.Context, opts IterOptions) Iterator
 }
 
+// Writer contains functions for mutating stuff stored within a store.
 type Writer interface {
+	// Set sets the value stored against the given key.
+	//
+	// If an item already exists at the given key it will be overwritten.
 	Set(ctx context.Context, key, value []byte) error
+
+	// Delete removes the value at the given key.
+	//
+	// If no matching key is found the behaviour is undefined:
+	// https://github.com/sourcenetwork/corekv/issues/36
 	Delete(ctx context.Context, key []byte) error
 }
 
+// Iterator is a read-only iterator that allows iteration over the underlying
+// store (or a part of it).
 type Iterator interface {
+	// The behaviour of Domain is undefined and varies heavily depending on
+	// which store implementation is being iterated over:
+	// https://github.com/sourcenetwork/corekv/issues/31
 	Domain() (start []byte, end []byte)
+
+	// Valid returns true if the iterator can return a valid item from
+	// `Value`.
+	//
+	// It will return false in all other cases, for example if the store is
+	// empty, or the iterator has passed the end of the range permitted by it's
+	// initialization options.
 	Valid() bool
+
+	// Next moves the iterator forward, whether there is a valid item available or
+	// not.
 	Next()
+
+	// Key returns the key at the current iterator location.
+	//
+	// If the iterator is currently at an invalid location it's behaviour is undefined:
+	// https://github.com/sourcenetwork/corekv/issues/37
 	Key() []byte
+
+	// Value returns the value at the current iterator location.
+	//
+	// If the iterator is currently at an invalid location it's behaviour is undefined:
+	// https://github.com/sourcenetwork/corekv/issues/37
 	Value() ([]byte, error)
+
+	// Seek moves the iterator to the given key, if and exact match is not found, the
+	// iterator will progress to the next valid value (depending on the `Reverse` option).
 	Seek([]byte)
+
+	// Close releases the iterator.
 	Close(ctx context.Context) error
 }
 
+// Store contains all the functions required for interacting with a store.
 type Store interface {
 	Reader
 	Writer
+
+	// Close disposes of any resources directly held by the store.
+	//
+	// WARNING: Some implmentations close transactions and iterators, others do not:
+	// https://github.com/sourcenetwork/corekv/issues/39
 	Close() error
 }
 
+// TxnStore represents a [Store] that supports transactions.
 type TxnStore interface {
 	Store
+
+	// NewTxn returns a new transaction.
 	NewTxn(readonly bool) Txn
 }
 
+// Txn hides changes made to the underlying store from this object,
+// and hides changes made via this object from the underlying store
+// until `Commit` is called.
 type Txn interface {
 	Reader
 	Writer
+
+	// Commit applies all changes made via this [Txn] to the underlying
+	// [Store].
 	Commit(ctx context.Context) error
+
+	// Discard discards all changes made via this object so far, returning
+	// it to the state it was at at time of construction.
 	Discard(ctx context.Context) error
 }
