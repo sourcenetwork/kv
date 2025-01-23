@@ -3,14 +3,12 @@ package namespace
 import (
 	"bytes"
 	"context"
-	"sync"
 
 	"github.com/sourcenetwork/corekv"
 )
 
 // namespaceStore wraps a namespace of another database as a logical database.
 type namespaceStore struct {
-	mu        sync.RWMutex
 	namespace []byte
 	store     corekv.Store
 }
@@ -77,14 +75,6 @@ func (nstore *namespaceStore) Close() error {
 }
 
 func (nstore *namespaceStore) prefixed(key []byte) []byte {
-	nstore.mu.RLock()
-	defer nstore.mu.RUnlock()
-	return prefixed(nstore.namespace, key)
-}
-
-// unsafePrefixed is the same as prefixed() but without locks, so the caller
-// *MUST* obtain locks themselves
-func (nstore *namespaceStore) unsafePrefixed(key []byte) []byte {
 	return prefixed(nstore.namespace, key)
 }
 
@@ -101,12 +91,7 @@ func strip(prefix, key []byte) []byte {
 
 // Iterator creates a new iterator instance
 func (nstore *namespaceStore) Iterator(ctx context.Context, opts corekv.IterOptions) corekv.Iterator {
-	nstore.mu.RLock()
-	defer nstore.mu.RUnlock()
-
-	// make a copy so future changes to the namespaceStore
-	// don't affect the iterator, since we don't use the same
-	// set of locks between the store and iterator
+	// make a copy the namespace so that we can safely mutate it within this function
 	namespace := cp(nstore.namespace)
 
 	var hasStart bool
@@ -115,15 +100,15 @@ func (nstore *namespaceStore) Iterator(ctx context.Context, opts corekv.IterOpti
 	// we can use unsafe here since we already aquired locks
 	// either prefix (priority) or start/end
 	if opts.Prefix != nil {
-		opts.Prefix = nstore.unsafePrefixed(opts.Prefix)
+		opts.Prefix = nstore.prefixed(opts.Prefix)
 		hasPrefix = true
 	} else { // note: this shouldnt be an "else if" if you're curious ;)
 		if opts.Start != nil {
-			opts.Start = nstore.unsafePrefixed(opts.Start)
+			opts.Start = nstore.prefixed(opts.Start)
 			hasStart = true
 		}
 		if opts.Prefix == nil && opts.End != nil {
-			opts.End = nstore.unsafePrefixed(opts.End)
+			opts.End = nstore.prefixed(opts.End)
 			hasEnd = true
 		}
 	}
