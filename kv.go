@@ -13,8 +13,7 @@ var DefaultIterOptions = IterOptions{}
 type IterOptions struct {
 	// Prefix iteration, all keys *must* contain
 	// the designated prefix. Prefix takes precendent
-	// over range (start/end). If Prefix is nil, range
-	// will be used (regardless if start/end is nil)
+	// over range (start/end).
 	Prefix []byte
 
 	// Range iteration from start (inclusive) to end explusive.
