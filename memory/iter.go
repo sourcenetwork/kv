@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 
+	"github.com/sourcenetwork/corekv"
+
 	"github.com/tidwall/btree"
 )
 
@@ -31,6 +33,8 @@ type iterator struct {
 	// if there are remaining items that can iterated through.
 	hasItem bool
 }
+
+var _ corekv.Iterator = (*iterator)(nil)
 
 func newPrefixIter(db *Datastore, prefix []byte, reverse bool, version uint64) *iterator {
 	start := prefix
