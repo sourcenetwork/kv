@@ -97,3 +97,27 @@ func Next() *MoveNext {
 func (a *MoveNext) Execute(s *state.State, iterator corekv.Iterator) {
 	iterator.Next()
 }
+
+// Valid executes a single `Value` call on an [Iterator] and requires that
+// the returned result matches the given `Expected` value.
+type IteratorValue struct {
+	// The expected result of the `Value` call.
+	Expected []byte
+}
+
+var _ IteratorAction = (*IteratorValue)(nil)
+
+// Value returns a [IteratorValue] iterator action that executes a single `Value` call
+// on an [Iterator] and requires that the returned result equals the given expected value.
+func Value(expected []byte) *IteratorValue {
+	return &IteratorValue{
+		Expected: expected,
+	}
+}
+
+func (a *IteratorValue) Execute(s *state.State, iterator corekv.Iterator) {
+	actual, err := iterator.Value()
+	require.NoError(s.T, err)
+
+	require.Equal(s.T, a.Expected, actual)
+}

@@ -193,28 +193,25 @@ func (iter *iterator) Seek(key []byte) {
 		// Unfortunately the BTree iterator doesn't provide a reversed seek, so we have to
 		// do a bit of work ourselves here if iterating in reverse.
 
-		if iter.end == nil {
-			// If no upper bound has been provided, e.g. via an `End` or `Prefix` option
-			// we can just return the last item in the BTree.
-			iter.hasItem = iter.it.Last()
-		} else {
-			iter.hasItem = iter.it.Seek(dsItem{key: iter.end, version: version})
-			if iter.hasItem {
+		iter.hasItem = iter.it.Seek(dsItem{key: key, version: version})
+		if iter.hasItem {
+			if !bytes.Equal(key, iter.it.Item().key) {
 				// If the BTree iterator `Seek` finds an item, it must be equal or greater than
-				// our upper bound.  The previous item key must then be less than our upper bound.
+				// our upper bound.  The previous item key must then be less than our upper bound
+				// so if it is not equal we must look back once.
 				iter.hasItem = iter.it.Prev()
 			}
+		}
 
-			if !iter.hasItem {
-				// If no items were found above or on the upper bound, we can move to the end of the
-				// BTree.
-				iter.hasItem = iter.it.Last()
-			}
+		if !iter.hasItem {
+			// If no items were found above or on the upper bound, we can move to the end of the
+			// BTree.
+			iter.hasItem = iter.it.Last()
+		}
 
-			if !iter.hasItem {
-				// If there are no items found at this point, it means the store is empty.
-				return
-			}
+		if !iter.hasItem {
+			// If there are no items found at this point, it means the store is empty.
+			return
 		}
 	} else {
 		iter.hasItem = iter.it.Seek(dsItem{key: key, version: version})
