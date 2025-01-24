@@ -121,6 +121,10 @@ type Iterator interface {
 
 	// Seek moves the iterator to the given key, if and exact match is not found, the
 	// iterator will progress to the next valid value (depending on the `Reverse` option).
+	//
+	// Seek will not seek to values outside of the constraints provided in [IterOptions],
+	// unless using the badger store due to bug:
+	// https://github.com/sourcenetwork/corekv/issues/38
 	Seek([]byte)
 
 	// Close releases the iterator.
