@@ -74,8 +74,3 @@ type Txn interface {
 	Commit(ctx context.Context) error
 	Discard(ctx context.Context) error
 }
-
-type Item interface {
-	Key() []byte
-	Value() []byte
-}
