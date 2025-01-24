@@ -223,7 +223,16 @@ func (iter *iterator) Seek(key []byte) {
 			return
 		}
 	} else {
-		iter.hasItem = iter.it.Seek(dsItem{key: key, version: version})
+		var target []byte
+		if iter.start != nil && lt(key, iter.start) {
+			// We should not yield keys smaller than `start`, so if the given seek-key
+			// is smaller than `start`, we should instead seek to `start`.
+			target = iter.start
+		} else {
+			target = key
+		}
+
+		iter.hasItem = iter.it.Seek(dsItem{key: target, version: version})
 	}
 
 	if !iter.hasItem {
