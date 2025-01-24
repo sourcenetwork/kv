@@ -63,17 +63,6 @@ type Store interface {
 	Close() error
 }
 
-type Batchable interface {
-	Store
-	NewBatch() Batch
-}
-
-type Batch interface {
-	Writer
-	Write(context.Context) error
-	Close(context.Context) error
-}
-
 type TxnStore interface {
 	Store
 	NewTxn(readonly bool) Txn
