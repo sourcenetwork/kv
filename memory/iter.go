@@ -4,213 +4,181 @@ import (
 	"bytes"
 	"context"
 
+	"github.com/sourcenetwork/corekv"
+
 	"github.com/tidwall/btree"
 )
 
-type dsPrefixIter struct {
-	ctx     context.Context
+type iterator struct {
 	db      *Datastore
 	version uint64
-	it      *baseIterator
-	prefix  []byte
+	it      btree.IterG[dsItem]
+
+	// The key at which this iterator begins.
+	//
+	// This is inclusive only if `mayExactlyMatchStart` is true.
+	start []byte
+
+	// The key at which this iterator ends, inclusive.
+	end []byte
+
+	// If this is true, `start` is inclusive, else `start` is exclusive.
+	isStartInclusive bool
+
+	// If true, the iterator will iterate in reverse order, from the largest
+	// key to the smallest.
 	reverse bool
-	curItem *dsItem
+
+	// hasItem mutates as the iterator progresses, it will be true
+	// if there are remaining items that can iterated through.
+	hasItem bool
 }
 
-type dsRangeIter struct {
-	ctx     context.Context
-	db      *Datastore
-	version uint64
-	it      *baseIterator
-	start   []byte
-	end     []byte
-	reverse bool
-	curItem *dsItem
-}
+var _ corekv.Iterator = (*iterator)(nil)
 
-func newPrefixIter(ctx context.Context, db *Datastore, prefix []byte, reverse bool, version uint64) *dsPrefixIter {
-	pIter := &dsPrefixIter{
-		ctx:     ctx,
-		db:      db,
-		version: version,
-		it:      newBaseIterator(db.values, reverse, prefix, bytesPrefixEnd(prefix)),
-		prefix:  prefix,
-		reverse: reverse,
-	}
+func newPrefixIter(db *Datastore, prefix []byte, reverse bool, version uint64) *iterator {
+	start := prefix
+	end := bytesPrefixEnd(prefix)
+
+	it := db.values.Iter()
+	var hasItem bool
 	if reverse {
-		pIter.Seek(bytesPrefixEnd(prefix))
+		hasItem = it.Last()
 	} else {
-		pIter.Seek(prefix)
+		hasItem = it.First()
 	}
 
-	// if the first key is an exact match to the prefix, skip next
-	// since prefix is a *strict* subset prefix
-	if pIter.curItem != nil && bytes.Equal(pIter.Key(), prefix) {
-		pIter.Next()
-	}
-
-	return pIter
-}
-
-func (iter *dsPrefixIter) Domain() (start []byte, end []byte) {
-	return iter.prefix, iter.prefix
-}
-
-func (iter *dsPrefixIter) Valid() bool {
-	return validForPrefix(iter.curItem, iter.prefix)
-}
-
-func validForPrefix(item *dsItem, prefix []byte) bool {
-	if item == nil {
-		return false
-	}
-
-	return bytes.HasPrefix(item.key, prefix) && !bytes.Equal(item.key, prefix)
-}
-
-func (iter *dsPrefixIter) Next() {
-	if iter.it.Next() {
-		iter.loadLatestItem()
-	} else {
-		iter.curItem = nil
-	}
-}
-
-func (iter *dsPrefixIter) Key() []byte {
-	if iter.curItem != nil {
-		return iter.curItem.key
-	}
-	return nil
-}
-
-func (iter *dsPrefixIter) Value() ([]byte, error) {
-	if iter.curItem != nil {
-		return iter.curItem.val, nil
-	}
-	return nil, nil
-}
-
-func (iter *dsPrefixIter) Seek(key []byte) {
-	// get the correct initial version for the seek
-	// if there exists an exact match in keys, use the latest version
-	// of that key, otherwise, use the provided DB version
-	// TODO this could use some "peek" mechanic instead of a full lookup
-	version := iter.version
-	result := iter.db.get(key, version)
-	if result.key != nil && !result.isDeleted {
-		version = result.version
-	}
-
-	if iter.it.Seek(dsItem{key: key, version: version}) {
-		iter.loadLatestItem()
-	} else {
-		iter.curItem = nil
-	}
-}
-
-func (iter *dsPrefixIter) Close(ctx context.Context) error {
-	return iter.it.Close()
-}
-
-func (iter *dsPrefixIter) loadLatestItem() {
-	curItem := iter.it.Item()
-	for iter.it.Next() {
-		if bytes.Equal(curItem.key, iter.it.Item().key) {
-			curItem = iter.it.Item()
-			continue
-		}
-		iter.it.Prev()
-		break
-	}
-
-	if curItem.isDeleted {
-		iter.curItem = nil
-
-		if iter.it.Next() {
-			iter.loadLatestItem()
-		}
-		return
-	}
-
-	if len(curItem.key) == 0 {
-		// If the current item doesn't exist, explicitly set the current item to nil
-		// instead of a default value, this saves us from having to check the length
-		// of the `curItem.key` property everywhere.
-		iter.curItem = nil
-		return
-	}
-
-	iter.curItem = &curItem
-}
-
-type baseIterator struct {
-	it btree.IterG[dsItem]
-
-	// The smallest key that is valid (inclusive bound) for this iterator to return
-	lowerBound []byte
-
-	// The smallest key that is invalid (exclusive bound) for this iterator to return.
-	upperBound []byte
-
-	// If true, this iterator should be yielding items in reverse order.
-	reverse bool
-}
-
-func newRangeIter(ctx context.Context, db *Datastore, start, end []byte, reverse bool, version uint64) *dsRangeIter {
-	rIter := &dsRangeIter{
-		ctx:     ctx,
+	iter := &iterator{
 		db:      db,
 		version: version,
-		it:      newBaseIterator(db.values, reverse, start, end),
+		it:      it,
 		start:   start,
 		end:     end,
-		reverse: reverse,
+		// A prefix iterator must not return a key exactly matching itself.
+		isStartInclusive: false,
+		reverse:          reverse,
+		hasItem:          hasItem,
+	}
+
+	if reverse {
+		iter.Seek(end)
+	} else {
+		iter.Seek(start)
+	}
+
+	return iter
+}
+
+func newRangeIter(db *Datastore, start, end []byte, reverse bool, version uint64) *iterator {
+	it := db.values.Iter()
+	var hasItem bool
+	if reverse {
+		hasItem = it.Last()
+	} else {
+		hasItem = it.First()
+	}
+
+	iter := &iterator{
+		db:               db,
+		version:          version,
+		it:               it,
+		start:            start,
+		end:              end,
+		isStartInclusive: true,
+		reverse:          reverse,
+		hasItem:          hasItem,
 	}
 
 	if len(end) > 0 && reverse {
-		rIter.Seek(end)
+		iter.Seek(end)
 	} else if len(start) > 0 && !reverse {
-		rIter.Seek(start)
+		iter.Seek(start)
+	} else if hasItem {
+		iter.loadLatestItem()
+
+		if !iter.Valid() {
+			iter.Next()
+		}
 	}
 
-	rIter.loadLatestItem()
-
-	return rIter
+	return iter
 }
 
-func (iter *dsRangeIter) Domain() (start []byte, end []byte) {
+func (iter *iterator) Domain() (start []byte, end []byte) {
 	return iter.start, iter.end
 }
 
-func (iter *dsRangeIter) Valid() bool {
-	if iter.curItem == nil {
+func (iter *iterator) Valid() bool {
+	if !iter.hasItem {
 		return false
 	}
 
-	if len(iter.end) > 0 && !lt(iter.curItem.key, iter.end) {
+	if iter.it.Item().isDeleted {
 		return false
 	}
 
-	return gte(iter.curItem.key, iter.start)
+	if !iter.isStartInclusive && (!iter.reverse && bytes.Equal(iter.it.Item().key, iter.start) ||
+		iter.reverse && bytes.Equal(iter.it.Item().key, iter.end)) {
+		return false
+	}
+
+	if len(iter.end) > 0 && !lt(iter.it.Item().key, iter.end) {
+		return false
+	}
+
+	return gte(iter.it.Item().key, iter.start)
 }
 
-func (iter *dsRangeIter) Next() {
-	if iter.it.Next() {
-		iter.loadLatestItem()
-	} else {
-		iter.curItem = nil
+func (iter *iterator) Next() {
+	if !iter.hasItem {
+		return
+	}
+
+	previousItem := iter.it.Item()
+	iter.hasItem = false
+
+	for iter.next() {
+		// Scan through until we reach the next key.
+		// It doesn't matter if it is deleted or not.
+		if !bytes.Equal(previousItem.key, iter.it.Item().key) {
+			iter.hasItem = true
+			break
+		}
+	}
+
+	if !iter.hasItem {
+		return
+	}
+
+	iter.loadLatestItem()
+
+	if iter.it.Item().isDeleted {
+		iter.Next()
 	}
 }
 
-func (iter *dsRangeIter) Key() []byte {
-	return iter.curItem.key
+func (iter *iterator) next() bool {
+	if iter.reverse {
+		// WARNING: There is a bug in `Prev` that can cause unexpected behaviour
+		// when attempting to iterate beyond the end of the iterator.
+		//
+		// This is documented by the test `TestBTreePrevBug`, and our current
+		// interface/implementation should prevent it from surfacing, but be careful
+		// with this call.
+		return iter.it.Prev()
+	}
+	return iter.it.Next()
 }
 
-func (iter *dsRangeIter) Value() ([]byte, error) {
-	return iter.curItem.val, nil
+func (iter *iterator) Key() []byte {
+	return iter.it.Item().key
 }
 
-func (iter *dsRangeIter) Seek(key []byte) {
+func (iter *iterator) Value() ([]byte, error) {
+	return iter.it.Item().val, nil
+}
+
+func (iter *iterator) Seek(key []byte) {
 	// get the correct initial version for the seek
 	// if there exists an exact match in keys, use the latest version
 	// of that key, otherwise, use the provided DB version
@@ -221,122 +189,78 @@ func (iter *dsRangeIter) Seek(key []byte) {
 		version = result.version
 	}
 
-	if iter.it.Seek(dsItem{key: key, version: version}) {
-		iter.loadLatestItem()
-	} else {
-		iter.curItem = nil
-	}
-}
-
-func (iter *dsRangeIter) Close(ctx context.Context) error {
-	return iter.it.Close()
-}
-
-// loadLatestItem gets the latest version of the current key
-func (iter *dsRangeIter) loadLatestItem() {
-	curItem := iter.it.Item()
-	for iter.it.Next() {
-		if bytes.Equal(curItem.key, iter.it.Item().key) {
-			curItem = iter.it.Item()
-			continue
-		}
-		iter.it.Prev()
-		break
-	}
-
-	if curItem.isDeleted {
-		iter.curItem = nil
-
-		if iter.it.Next() {
-			iter.loadLatestItem()
-		}
-		return
-	}
-
-	if len(curItem.key) == 0 {
-		// If the current item doesn't exist, explicitly set the current item to nil
-		// instead of a default value, this saves us from having to check the length
-		// of the `curItem.key` property everywhere.
-		iter.curItem = nil
-		return
-	}
-
-	iter.curItem = &curItem
-}
-
-func newBaseIterator(bt *btree.BTreeG[dsItem], reverse bool, lowerBound []byte, upperBound []byte) *baseIterator {
-	bit := bt.Iter()
-	if reverse {
-		bit.Last()
-	} else {
-		bit.First()
-	}
-
-	return &baseIterator{
-		it:         bit,
-		upperBound: upperBound,
-		lowerBound: lowerBound,
-		reverse:    reverse,
-	}
-}
-
-func (bit *baseIterator) Next() bool {
-	if bit.reverse {
-		return bit.it.Prev()
-	}
-	return bit.it.Next()
-}
-
-func (bit *baseIterator) Prev() bool {
-	if bit.reverse {
-		return bit.it.Next()
-	}
-	return bit.it.Prev()
-}
-
-func (bit *baseIterator) Item() dsItem {
-	return bit.it.Item()
-}
-
-func (bit *baseIterator) Seek(key dsItem) bool {
-	if bit.reverse {
+	if iter.reverse {
 		// Unfortunately the BTree iterator doesn't provide a reversed seek, so we have to
 		// do a bit of work ourselves here if iterating in reverse.
 
-		if bit.upperBound == nil {
-			// If no upper bound has been provided, e.g. via an `End` or `Prefix` option
-			// we can just return the last item in the BTree.
-			return bit.it.Last()
+		var target []byte
+		if iter.end != nil && lt(iter.end, key) {
+			// We should not yield keys greater/equal to the `end`, so if the given seek-key
+			// is greater than `end`, we should instead seek to `end`.
+			target = iter.end
+		} else {
+			target = key
 		}
 
-		hasItems := bit.it.Seek(dsItem{key: bit.upperBound, version: key.version})
-		if hasItems {
-			// If the BTree iterator `Seek` finds an item, it must be equal or greater than
-			// our upper bound.  The previous item key must then be less than our upper bound.
-			hasItems = bit.it.Prev()
+		iter.hasItem = iter.it.Seek(dsItem{key: target, version: version})
+		if iter.hasItem {
+			if !bytes.Equal(target, iter.it.Item().key) {
+				// If the BTree iterator `Seek` finds an item, it must be equal or greater than
+				// our upper bound.  The previous item key must then be less than our upper bound
+				// so if it is not equal we must look back once.
+				iter.hasItem = iter.it.Prev()
+			}
 		}
 
-		if !hasItems {
+		if !iter.hasItem {
 			// If no items were found above or on the upper bound, we can move to the end of the
 			// BTree.
-			hasItems = bit.it.Last()
+			iter.hasItem = iter.it.Last()
 		}
 
-		if !hasItems {
+		if !iter.hasItem {
 			// If there are no items found at this point, it means the store is empty.
-			return false
+			return
+		}
+	} else {
+		var target []byte
+		if iter.start != nil && lt(key, iter.start) {
+			// We should not yield keys smaller than `start`, so if the given seek-key
+			// is smaller than `start`, we should instead seek to `start`.
+			target = iter.start
+		} else {
+			target = key
 		}
 
-		// Only return true if the item is within the lower bound.
-		return bit.lowerBound != nil && gte(bit.it.Item().key, bit.lowerBound)
+		iter.hasItem = iter.it.Seek(dsItem{key: target, version: version})
 	}
 
-	return bit.it.Seek(key)
+	if !iter.hasItem {
+		return
+	}
+
+	iter.loadLatestItem()
+
+	if !iter.Valid() {
+		iter.Next()
+	}
 }
 
-func (bit *baseIterator) Close() error {
-	bit.it.Release()
+func (iter *iterator) Close(ctx context.Context) error {
+	iter.it.Release()
 	return nil
+}
+
+func (iter *iterator) loadLatestItem() {
+	previousItem := iter.it.Item()
+	for iter.it.Next() {
+		// Scan through until we reach the next key.
+		// It doesn't matter if it is deleted or not.
+		if !bytes.Equal(previousItem.key, iter.it.Item().key) {
+			iter.it.Prev()
+			break
+		}
+	}
 }
 
 func bytesPrefixEnd(b []byte) []byte {

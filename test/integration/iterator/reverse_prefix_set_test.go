@@ -8,16 +8,18 @@ import (
 	"github.com/sourcenetwork/corekv/test/integration"
 )
 
-func TestIteratorReverseEndValid(t *testing.T) {
+func TestIteratorReversePrefixSet(t *testing.T) {
 	test := &integration.Test{
 		Actions: []action.Action{
-			&action.Iterator{
+			action.Set([]byte("k1"), []byte("v1")),
+			action.Set([]byte("k1"), []byte("v1.1")),
+			&action.Iterate{
 				IterOptions: corekv.IterOptions{
 					Reverse: true,
-					End:     []byte("k4"),
+					Prefix:  []byte("k"),
 				},
-				ChildActions: []action.IteratorAction{
-					action.IsInvalid(),
+				Expected: []action.KeyValue{
+					{Key: []byte("k1"), Value: []byte("v1.1")},
 				},
 			},
 		},

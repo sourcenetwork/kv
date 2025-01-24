@@ -7,12 +7,11 @@ import (
 	"github.com/sourcenetwork/corekv/test/action"
 	"github.com/sourcenetwork/corekv/test/integration"
 	"github.com/sourcenetwork/corekv/test/state"
-	"github.com/stretchr/testify/require"
 )
 
-// This test documents undesirable behaviour, issue:
-// https://github.com/sourcenetwork/corekv/issues/19
-func TestIteratorReverseNextValid_Badger(t *testing.T) {
+// This test documents unwanted behaviour tracked by issue:
+// https://github.com/sourcenetwork/corekv/issues/38
+func TestIteratorReverseEndSeekValidValue_Badger(t *testing.T) {
 	test := &integration.Test{
 		SupportedStoreTypes: []state.StoreType{
 			state.BadgerStoreType,
@@ -25,31 +24,23 @@ func TestIteratorReverseNextValid_Badger(t *testing.T) {
 			&action.Iterator{
 				IterOptions: corekv.IterOptions{
 					Reverse: true,
+					End:     []byte("k3"),
 				},
 				ChildActions: []action.IteratorAction{
-					action.Next(),
-					action.Next(),
-					action.Next(),
+					action.Seek([]byte("k4")),
 					action.IsValid(),
-					action.Next(),
-					action.IsInvalid(),
-					action.Next(),
-					action.IsInvalid(),
+					// `k4` is outside of the upper bound of the iterator and
+					// should not be returned, but it is.
+					action.Value([]byte("v4")),
 				},
 			},
 		},
 	}
 
-	require.PanicsWithError(
-		t,
-		"runtime error: invalid memory address or nil pointer dereference",
-		func() {
-			test.Execute(t)
-		},
-	)
+	test.Execute(t)
 }
 
-func TestIteratorReverseNextValid_Memory(t *testing.T) {
+func TestIteratorReverseEndSeekValidValue_Memory(t *testing.T) {
 	test := &integration.Test{
 		SupportedStoreTypes: []state.StoreType{
 			state.MemoryStoreType,
@@ -62,16 +53,12 @@ func TestIteratorReverseNextValid_Memory(t *testing.T) {
 			&action.Iterator{
 				IterOptions: corekv.IterOptions{
 					Reverse: true,
+					End:     []byte("k3"),
 				},
 				ChildActions: []action.IteratorAction{
-					action.Next(),
-					action.Next(),
-					action.Next(),
+					action.Seek([]byte("k4")),
 					action.IsValid(),
-					action.Next(),
-					action.IsInvalid(),
-					action.Next(),
-					action.IsInvalid(),
+					action.Value([]byte("v2")),
 				},
 			},
 		},
