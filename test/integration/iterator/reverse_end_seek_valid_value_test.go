@@ -39,3 +39,30 @@ func TestIteratorReverseEndSeekValidValue_Badger(t *testing.T) {
 
 	test.Execute(t)
 }
+
+func TestIteratorReverseEndSeekValidValue_Memory(t *testing.T) {
+	test := &integration.Test{
+		SupportedStoreTypes: []state.StoreType{
+			state.MemoryStoreType,
+		},
+		Actions: []action.Action{
+			action.Set([]byte("k1"), []byte("v1")),
+			action.Set([]byte("k3"), nil),
+			action.Set([]byte("k4"), []byte("v4")),
+			action.Set([]byte("k2"), []byte("v2")),
+			&action.Iterator{
+				IterOptions: corekv.IterOptions{
+					Reverse: true,
+					End:     []byte("k3"),
+				},
+				ChildActions: []action.IteratorAction{
+					action.Seek([]byte("k4")),
+					action.IsValid(),
+					action.Value([]byte("v2")),
+				},
+			},
+		},
+	}
+
+	test.Execute(t)
+}

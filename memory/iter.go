@@ -193,9 +193,18 @@ func (iter *iterator) Seek(key []byte) {
 		// Unfortunately the BTree iterator doesn't provide a reversed seek, so we have to
 		// do a bit of work ourselves here if iterating in reverse.
 
-		iter.hasItem = iter.it.Seek(dsItem{key: key, version: version})
+		var target []byte
+		if iter.end != nil && lt(iter.end, key) {
+			// We should not yield keys greater/equal to the `end`, so if the given seek-key
+			// is greater than `end`, we should instead seek to `end`.
+			target = iter.end
+		} else {
+			target = key
+		}
+
+		iter.hasItem = iter.it.Seek(dsItem{key: target, version: version})
 		if iter.hasItem {
-			if !bytes.Equal(key, iter.it.Item().key) {
+			if !bytes.Equal(target, iter.it.Item().key) {
 				// If the BTree iterator `Seek` finds an item, it must be equal or greater than
 				// our upper bound.  The previous item key must then be less than our upper bound
 				// so if it is not equal we must look back once.
