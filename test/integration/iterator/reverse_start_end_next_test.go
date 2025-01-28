@@ -8,7 +8,7 @@ import (
 	"github.com/sourcenetwork/corekv/test/integration"
 )
 
-func TestIteratorReverseStartEndValid(t *testing.T) {
+func TestIteratorReverseStartEndNext_ValueBeforeStart(t *testing.T) {
 	test := &integration.Test{
 		Actions: []action.Action{
 			action.Set([]byte("k1"), []byte("v1")),
@@ -19,7 +19,7 @@ func TestIteratorReverseStartEndValid(t *testing.T) {
 					End:     []byte("k4"),
 				},
 				ChildActions: []action.IteratorAction{
-					action.IsInvalid(),
+					action.Next(false),
 				},
 			},
 		},
@@ -28,7 +28,7 @@ func TestIteratorReverseStartEndValid(t *testing.T) {
 	test.Execute(t)
 }
 
-func TestIteratorReverseStartEndValid2(t *testing.T) {
+func TestIteratorReverseStartEndNext_ValueBeforeStartAndAfterEnd(t *testing.T) {
 	test := &integration.Test{
 		Actions: []action.Action{
 			action.Set([]byte("k1"), []byte("v1")),
@@ -40,7 +40,7 @@ func TestIteratorReverseStartEndValid2(t *testing.T) {
 					End:     []byte("k4"),
 				},
 				ChildActions: []action.IteratorAction{
-					action.IsInvalid(),
+					action.Next(false),
 				},
 			},
 		},

@@ -84,81 +84,35 @@ func prefixed(prefix, key []byte) []byte {
 
 // Iterator creates a new iterator instance
 func (nstore *namespaceStore) Iterator(ctx context.Context, opts corekv.IterOptions) corekv.Iterator {
-	// make a copy of the namespace so that we can safely mutate it within this function
-	namespace := cp(nstore.namespace)
-
-	var hasStart bool
-	var hasEnd bool
-	var hasPrefix bool
 	// we can use unsafe here since we already aquired locks
 	// either prefix (priority) or start/end
 	if opts.Prefix != nil {
 		opts.Prefix = nstore.prefixed(opts.Prefix)
-		hasPrefix = true
-	} else { // note: this shouldnt be an "else if" if you're curious ;)
+	} else {
 		if opts.Start != nil {
 			opts.Start = nstore.prefixed(opts.Start)
-			hasStart = true
 		}
-		if opts.Prefix == nil && opts.End != nil {
+		if opts.End != nil {
 			opts.End = nstore.prefixed(opts.End)
-			hasEnd = true
 		}
 	}
-
-	source := nstore.store.Iterator(ctx, opts)
-
-	/* TODO START - CLEAN UP BRANCHING */
-	// if start/end aren't defined, we need to seek to the correct
-	// starting point (direction depending)
-	if !hasEnd && !hasStart && !hasPrefix && !opts.Reverse { // without reverse
-		source.Seek(namespace)
-	} else if !hasEnd && !hasStart && !hasPrefix && opts.Reverse { // with reverse
-		source.Seek(bytesPrefixEnd(namespace))
-	}
-
-	// if start is defined
-	// [Start, nil] + Reverse
-	if opts.Reverse && hasStart && !hasEnd {
-		source.Seek(bytesPrefixEnd(namespace))
-	} else if !opts.Reverse && !hasStart && hasEnd {
-		source.Seek(namespace)
-	}
-
-	/* TODO END - CLEAN UP BRANCHING */
-
-	// Empty keys are not allowed, so if a key exists in the database that exactly matches the
-	// prefix we need to skip it.
-	if source.Valid() && bytes.Equal(source.Key(), namespace) {
-		source.Next()
-	}
-
-	// in case its a range iterator with start/end defined as nil, we need to make
-	// sure we haven't gone beyond the namespace
-	// if !source.Valid() || !bytes.HasPrefix(source.Key(), namespace) {
-	// 	return nil // todo: add error
-	// }
 
 	return &namespaceIterator{
-		namespace: namespace,
-		hasStart:  hasStart,
-		hasEnd:    hasEnd,
-		it:        source,
+		namespace: nstore.namespace,
+		it:        nstore.store.Iterator(ctx, opts),
 	}
 }
 
 type namespaceIterator struct {
 	namespace []byte
-	hasStart  bool // original IterOpts.Start
-	hasEnd    bool // original IterOpts.End
 	it        corekv.Iterator
 }
 
-func (nIter *namespaceIterator) Valid() bool {
-	if !nIter.it.Valid() {
-		return false
-	}
+func (nIter *namespaceIterator) Reset() {
+	nIter.it.Reset()
+}
 
+func (nIter *namespaceIterator) Valid() bool {
 	// make sure our keys contain the namespace BUT NOT exactly matching
 	key := nIter.it.Key()
 	if bytes.Equal(key, nIter.namespace) {
@@ -171,8 +125,8 @@ func (nIter *namespaceIterator) Valid() bool {
 	return true
 }
 
-func (nIter *namespaceIterator) Next() {
-	nIter.it.Next()
+func (nIter *namespaceIterator) Next() (bool, error) {
+	return nIter.it.Next()
 }
 
 func (nIter *namespaceIterator) Key() []byte {
@@ -184,9 +138,9 @@ func (nIter *namespaceIterator) Value() ([]byte, error) {
 	return nIter.it.Value()
 }
 
-func (nIter *namespaceIterator) Seek(key []byte) {
+func (nIter *namespaceIterator) Seek(key []byte) (bool, error) {
 	pKey := prefixed(nIter.namespace, key)
-	nIter.it.Seek(pKey)
+	return nIter.it.Seek(pKey)
 }
 
 func (nIter *namespaceIterator) Close(ctx context.Context) error {
@@ -197,18 +151,4 @@ func cp(bz []byte) (ret []byte) {
 	ret = make([]byte, len(bz))
 	copy(ret, bz)
 	return ret
-}
-
-func bytesPrefixEnd(b []byte) []byte {
-	end := make([]byte, len(b))
-	copy(end, b)
-	for i := len(end) - 1; i >= 0; i-- {
-		end[i] = end[i] + 1
-		if end[i] != 0 {
-			return end[:i+1]
-		}
-	}
-	// This statement will only be reached if the key is already a
-	// maximal byte string (i.e. already \xff...).
-	return b
 }

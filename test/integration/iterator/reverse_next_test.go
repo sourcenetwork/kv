@@ -10,9 +10,27 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestIteratorReverseNext(t *testing.T) {
+	test := &integration.Test{
+		Actions: []action.Action{
+			action.Set([]byte("k1"), []byte("v1")),
+			&action.Iterator{
+				IterOptions: corekv.IterOptions{
+					Reverse: true,
+				},
+				ChildActions: []action.IteratorAction{
+					action.Next(true),
+				},
+			},
+		},
+	}
+
+	test.Execute(t)
+}
+
 // This test documents undesirable behaviour, issue:
 // https://github.com/sourcenetwork/corekv/issues/19
-func TestIteratorReverseNextValid_Badger(t *testing.T) {
+func TestIteratorReverseNext_BeyondEnd_Badger(t *testing.T) {
 	test := &integration.Test{
 		SupportedStoreTypes: []state.StoreType{
 			state.BadgerStoreType,
@@ -27,14 +45,12 @@ func TestIteratorReverseNextValid_Badger(t *testing.T) {
 					Reverse: true,
 				},
 				ChildActions: []action.IteratorAction{
-					action.Next(),
-					action.Next(),
-					action.Next(),
-					action.IsValid(),
-					action.Next(),
-					action.IsInvalid(),
-					action.Next(),
-					action.IsInvalid(),
+					action.Next(true),
+					action.Next(true),
+					action.Next(true),
+					action.Next(true),
+					action.Next(false),
+					action.Next(false),
 				},
 			},
 		},
@@ -49,7 +65,7 @@ func TestIteratorReverseNextValid_Badger(t *testing.T) {
 	)
 }
 
-func TestIteratorReverseNextValid_Memory(t *testing.T) {
+func TestIteratorReverseNext_BeyondEnd_Memory(t *testing.T) {
 	test := &integration.Test{
 		SupportedStoreTypes: []state.StoreType{
 			state.MemoryStoreType,
@@ -64,14 +80,12 @@ func TestIteratorReverseNextValid_Memory(t *testing.T) {
 					Reverse: true,
 				},
 				ChildActions: []action.IteratorAction{
-					action.Next(),
-					action.Next(),
-					action.Next(),
-					action.IsValid(),
-					action.Next(),
-					action.IsInvalid(),
-					action.Next(),
-					action.IsInvalid(),
+					action.Next(true),
+					action.Next(true),
+					action.Next(true),
+					action.Next(true),
+					action.Next(false),
+					action.Next(false),
 				},
 			},
 		},

@@ -29,83 +29,79 @@ type iterator struct {
 	// key to the smallest.
 	reverse bool
 
-	// hasItem mutates as the iterator progresses, it will be true
-	// if there are remaining items that can iterated through.
-	hasItem bool
+	// reset is a mutatuble property that indicates whether the iterator should be
+	// returned to the beginning on the next [Next] call.
+	reset bool
 }
 
 var _ corekv.Iterator = (*iterator)(nil)
 
 func newPrefixIter(db *Datastore, prefix []byte, reverse bool, version uint64) *iterator {
-	start := prefix
-	end := bytesPrefixEnd(prefix)
-
-	it := db.values.Iter()
-	var hasItem bool
-	if reverse {
-		hasItem = it.Last()
-	} else {
-		hasItem = it.First()
-	}
-
-	iter := &iterator{
+	return &iterator{
 		db:      db,
 		version: version,
-		it:      it,
-		start:   start,
-		end:     end,
+		it:      db.values.Iter(),
+		start:   prefix,
+		end:     bytesPrefixEnd(prefix),
 		// A prefix iterator must not return a key exactly matching itself.
 		isStartInclusive: false,
 		reverse:          reverse,
-		hasItem:          hasItem,
+		reset:            true,
 	}
-
-	if reverse {
-		iter.Seek(end)
-	} else {
-		iter.Seek(start)
-	}
-
-	return iter
 }
 
 func newRangeIter(db *Datastore, start, end []byte, reverse bool, version uint64) *iterator {
-	it := db.values.Iter()
-	var hasItem bool
-	if reverse {
-		hasItem = it.Last()
-	} else {
-		hasItem = it.First()
-	}
-
-	iter := &iterator{
+	return &iterator{
 		db:               db,
 		version:          version,
-		it:               it,
+		it:               db.values.Iter(),
 		start:            start,
 		end:              end,
 		isStartInclusive: true,
 		reverse:          reverse,
-		hasItem:          hasItem,
+		reset:            true,
 	}
-
-	if len(end) > 0 && reverse {
-		iter.Seek(end)
-	} else if len(start) > 0 && !reverse {
-		iter.Seek(start)
-	} else if hasItem {
-		iter.loadLatestItem()
-
-		if !iter.Valid() {
-			iter.Next()
-		}
-	}
-
-	return iter
 }
 
-func (iter *iterator) Valid() bool {
-	if !iter.hasItem {
+func (iter *iterator) Reset() {
+	iter.reset = true
+}
+
+// restart returns the iterator back to it's initial location at time of construction,
+// allowing re-iteration of the underlying data.
+func (iter *iterator) restart() (bool, error) {
+	iter.reset = false
+
+	if len(iter.end) > 0 && iter.reverse {
+		return iter.Seek(iter.end)
+	} else if len(iter.start) > 0 && !iter.reverse {
+		return iter.Seek(iter.start)
+	} else {
+		var hasItem bool
+		if iter.reverse {
+			hasItem = iter.it.Last()
+			// We don't need to bother loading the latest item in reverse, as the Last item
+			// will be of the latest version anyway.
+		} else {
+			hasItem = iter.it.First()
+			iter.loadLatestItem()
+		}
+
+		if !hasItem {
+			return false, nil
+		}
+
+		if !iter.valid() {
+			return iter.Next()
+		}
+
+		return true, nil
+	}
+
+}
+
+func (iter *iterator) valid() bool {
+	if len(iter.it.Item().key) == 0 {
 		return false
 	}
 
@@ -125,32 +121,33 @@ func (iter *iterator) Valid() bool {
 	return gte(iter.it.Item().key, iter.start)
 }
 
-func (iter *iterator) Next() {
-	if !iter.hasItem {
-		return
+func (iter *iterator) Next() (bool, error) {
+	if iter.reset {
+		return iter.restart()
 	}
 
 	previousItem := iter.it.Item()
-	iter.hasItem = false
-
+	var hasItem bool
 	for iter.next() {
 		// Scan through until we reach the next key.
 		// It doesn't matter if it is deleted or not.
 		if !bytes.Equal(previousItem.key, iter.it.Item().key) {
-			iter.hasItem = true
+			hasItem = true
 			break
 		}
 	}
 
-	if !iter.hasItem {
-		return
+	if !hasItem {
+		return false, nil
 	}
 
 	iter.loadLatestItem()
 
 	if iter.it.Item().isDeleted {
-		iter.Next()
+		return iter.Next()
 	}
+
+	return iter.valid(), nil
 }
 
 func (iter *iterator) next() bool {
@@ -174,7 +171,11 @@ func (iter *iterator) Value() ([]byte, error) {
 	return iter.it.Item().val, nil
 }
 
-func (iter *iterator) Seek(key []byte) {
+func (iter *iterator) Seek(key []byte) (bool, error) {
+	// Clear the reset property, else if Next was call following Seek,
+	// Next may incorrectly return to the beginning.
+	iter.reset = false
+
 	// get the correct initial version for the seek
 	// if there exists an exact match in keys, use the latest version
 	// of that key, otherwise, use the provided DB version
@@ -185,6 +186,7 @@ func (iter *iterator) Seek(key []byte) {
 		version = result.version
 	}
 
+	var hasItem bool
 	if iter.reverse {
 		// Unfortunately the BTree iterator doesn't provide a reversed seek, so we have to
 		// do a bit of work ourselves here if iterating in reverse.
@@ -198,25 +200,25 @@ func (iter *iterator) Seek(key []byte) {
 			target = key
 		}
 
-		iter.hasItem = iter.it.Seek(dsItem{key: target, version: version})
-		if iter.hasItem {
+		hasItem = iter.it.Seek(dsItem{key: target, version: version})
+		if hasItem {
 			if !bytes.Equal(target, iter.it.Item().key) {
 				// If the BTree iterator `Seek` finds an item, it must be equal or greater than
 				// our upper bound.  The previous item key must then be less than our upper bound
 				// so if it is not equal we must look back once.
-				iter.hasItem = iter.it.Prev()
+				hasItem = iter.it.Prev()
 			}
 		}
 
-		if !iter.hasItem {
+		if !hasItem {
 			// If no items were found above or on the upper bound, we can move to the end of the
 			// BTree.
-			iter.hasItem = iter.it.Last()
+			hasItem = iter.it.Last()
 		}
 
-		if !iter.hasItem {
+		if !hasItem {
 			// If there are no items found at this point, it means the store is empty.
-			return
+			return false, nil
 		}
 	} else {
 		var target []byte
@@ -228,18 +230,20 @@ func (iter *iterator) Seek(key []byte) {
 			target = key
 		}
 
-		iter.hasItem = iter.it.Seek(dsItem{key: target, version: version})
+		hasItem = iter.it.Seek(dsItem{key: target, version: version})
 	}
 
-	if !iter.hasItem {
-		return
+	if !hasItem {
+		return false, nil
 	}
 
 	iter.loadLatestItem()
 
-	if !iter.Valid() {
-		iter.Next()
+	if !iter.valid() {
+		return iter.Next()
 	}
+
+	return true, nil
 }
 
 func (iter *iterator) Close(ctx context.Context) error {

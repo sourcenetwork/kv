@@ -8,7 +8,7 @@ import (
 	"github.com/sourcenetwork/corekv/test/integration"
 )
 
-func TestIteratorReverseSeekValid(t *testing.T) {
+func TestIteratorReverseSeekValue(t *testing.T) {
 	test := &integration.Test{
 		Actions: []action.Action{
 			action.Set([]byte("k1"), []byte("v1")),
@@ -20,8 +20,8 @@ func TestIteratorReverseSeekValid(t *testing.T) {
 					Reverse: true,
 				},
 				ChildActions: []action.IteratorAction{
-					action.Seek([]byte("k2")),
-					action.IsValid(),
+					action.Seek([]byte("k2"), true),
+					action.Value([]byte("v2")),
 				},
 			},
 		},
