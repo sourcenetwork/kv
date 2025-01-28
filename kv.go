@@ -73,7 +73,7 @@ type Reader interface {
 	Iterator(ctx context.Context, opts IterOptions) Iterator
 }
 
-// Writer contains functions for mutating stuff stored within a store.
+// Writer contains functions for mutating values within a store.
 type Writer interface {
 	// Set sets the value stored against the given key.
 	//
