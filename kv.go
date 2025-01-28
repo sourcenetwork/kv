@@ -151,8 +151,8 @@ type TxnStore interface {
 	NewTxn(readonly bool) Txn
 }
 
-// Txn hides changes made to the underlying store from this object,
-// and hides changes made via this object from the underlying store
+// Txn isolates changes made to the underlying store from this object,
+// and isolates changes made via this object from the underlying store
 // until `Commit` is called.
 type Txn interface {
 	Reader
