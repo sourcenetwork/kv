@@ -33,7 +33,7 @@ type IterOptions struct {
 	// https://github.com/sourcenetwork/corekv/issues/32
 	Start []byte
 
-	// If Prefix is nil, and Start is provided, the iterator will
+	// If Prefix is nil, and End is provided, the iterator will
 	// only yield items with a key lexographically smaller than this
 	// value.
 	//
