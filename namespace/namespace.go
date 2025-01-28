@@ -91,7 +91,7 @@ func strip(prefix, key []byte) []byte {
 
 // Iterator creates a new iterator instance
 func (nstore *namespaceStore) Iterator(ctx context.Context, opts corekv.IterOptions) corekv.Iterator {
-	// make a copy the namespace so that we can safely mutate it within this function
+	// make a copy of the namespace so that we can safely mutate it within this function
 	namespace := cp(nstore.namespace)
 
 	var hasStart bool
