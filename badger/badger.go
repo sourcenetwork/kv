@@ -227,6 +227,12 @@ func (it *rangeIterator) restart() (bool, error) {
 			return false, err
 		}
 
+		// if we seeked to the end and its an exact match to the end marker
+		// go next. This is because ranges are [start, end) (exlusive)
+		//
+		// todo: This check is in the wrong place and is a symptom of:
+		// https://github.com/sourcenetwork/corekv/issues/38 - this check
+		// needs to move to `valid` once/as `Seek` is being fixed.
 		if equal(it.i.Item().Key(), it.end) {
 			return it.Next()
 		}
