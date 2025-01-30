@@ -84,8 +84,6 @@ func prefixed(prefix, key []byte) []byte {
 
 // Iterator creates a new iterator instance
 func (nstore *namespaceStore) Iterator(ctx context.Context, opts corekv.IterOptions) corekv.Iterator {
-	// we can use unsafe here since we already aquired locks
-	// either prefix (priority) or start/end
 	if opts.Prefix != nil {
 		opts.Prefix = nstore.prefixed(opts.Prefix)
 	} else {
