@@ -227,7 +227,7 @@ func (it *rangeIterator) restart() (bool, error) {
 			return false, err
 		}
 
-		if it.valid() && equal(it.i.Item().Key(), it.end) {
+		if equal(it.i.Item().Key(), it.end) {
 			return it.Next()
 		}
 
