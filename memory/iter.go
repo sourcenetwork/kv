@@ -22,9 +22,6 @@ type iterator struct {
 	// The key at which this iterator ends, inclusive.
 	end []byte
 
-	// If this is true, `start` is inclusive, else `start` is exclusive.
-	isStartInclusive bool
-
 	// If true, the iterator will iterate in reverse order, from the largest
 	// key to the smallest.
 	reverse bool
@@ -43,23 +40,20 @@ func newPrefixIter(db *Datastore, prefix []byte, reverse bool, version uint64) *
 		it:      db.values.Iter(),
 		start:   prefix,
 		end:     bytesPrefixEnd(prefix),
-		// A prefix iterator must not return a key exactly matching itself.
-		isStartInclusive: false,
-		reverse:          reverse,
-		reset:            true,
+		reverse: reverse,
+		reset:   true,
 	}
 }
 
 func newRangeIter(db *Datastore, start, end []byte, reverse bool, version uint64) *iterator {
 	return &iterator{
-		db:               db,
-		version:          version,
-		it:               db.values.Iter(),
-		start:            start,
-		end:              end,
-		isStartInclusive: true,
-		reverse:          reverse,
-		reset:            true,
+		db:      db,
+		version: version,
+		it:      db.values.Iter(),
+		start:   start,
+		end:     end,
+		reverse: reverse,
+		reset:   true,
 	}
 }
 
@@ -106,11 +100,6 @@ func (iter *iterator) valid() bool {
 	}
 
 	if iter.it.Item().isDeleted {
-		return false
-	}
-
-	if !iter.isStartInclusive && (!iter.reverse && bytes.Equal(iter.it.Item().key, iter.start) ||
-		iter.reverse && bytes.Equal(iter.it.Item().key, iter.end)) {
 		return false
 	}
 
