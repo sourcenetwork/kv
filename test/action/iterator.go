@@ -36,66 +36,48 @@ type IteratorAction interface {
 // SeekTo executes a single `Seek` call on an [Iterator].
 type SeekTo struct {
 	// The target key to seek to.
-	Target []byte
+	Target      []byte
+	ExpectValue bool
 }
 
 var _ IteratorAction = (*SeekTo)(nil)
 
 // Seek returns a [SeekTo] iterator action that executes a single `Seek` call
 // on an [Iterator] to the given target.
-func Seek(target []byte) *SeekTo {
+func Seek(target []byte, expectValue bool) *SeekTo {
 	return &SeekTo{
-		Target: target,
+		Target:      target,
+		ExpectValue: expectValue,
 	}
 }
 
 func (a *SeekTo) Execute(s *state.State, iterator corekv.Iterator) {
-	iterator.Seek(a.Target)
-}
+	hasValue, err := iterator.Seek(a.Target)
+	require.NoError(s.T, err)
 
-// Valid executes a single `Valid` call on an [Iterator] and requires that
-// the returned result matches the given `Expected` value.
-type Valid struct {
-	// The expected result of the `Valid` call.
-	Expected bool
-}
-
-var _ IteratorAction = (*Valid)(nil)
-
-// IsValid returns a [Valid] iterator action that executes a single `Valid` call
-// on an [Iterator] and requires that the returned result is true.
-func IsValid() *Valid {
-	return &Valid{
-		Expected: true,
-	}
-}
-
-// IsInvalid returns a [Valid] iterator action that executes a single `Valid` call
-// on an [Iterator] and requires that the returned result is false.
-func IsInvalid() *Valid {
-	return &Valid{
-		Expected: false,
-	}
-}
-
-func (a *Valid) Execute(s *state.State, iterator corekv.Iterator) {
-	result := iterator.Valid()
-	require.Equal(s.T, a.Expected, result)
+	require.Equal(s.T, a.ExpectValue, hasValue)
 }
 
 // MoveNext executes a single `Next` call on an an [Iterator].
-type MoveNext struct{}
+type MoveNext struct {
+	ExpectValue bool
+}
 
 var _ IteratorAction = (*MoveNext)(nil)
 
 // Next returns a [MoveNext] iterator action that executes a single `Next` call
 // on an [Iterator].
-func Next() *MoveNext {
-	return &MoveNext{}
+func Next(expectValue bool) *MoveNext {
+	return &MoveNext{
+		ExpectValue: expectValue,
+	}
 }
 
 func (a *MoveNext) Execute(s *state.State, iterator corekv.Iterator) {
-	iterator.Next()
+	hasValue, err := iterator.Next()
+	require.NoError(s.T, err)
+
+	require.Equal(s.T, a.ExpectValue, hasValue)
 }
 
 // Valid executes a single `Value` call on an [Iterator] and requires that
@@ -120,4 +102,19 @@ func (a *IteratorValue) Execute(s *state.State, iterator corekv.Iterator) {
 	require.NoError(s.T, err)
 
 	require.Equal(s.T, a.Expected, actual)
+}
+
+// IteratorReset executes a single `Reset` call on an [Iterator].
+type IteratorReset struct{}
+
+var _ IteratorAction = (*IteratorReset)(nil)
+
+// Reset returns a [IteratorReset] iterator action that executes a single `Reset` call
+// on an [Iterator].
+func Reset() *IteratorReset {
+	return &IteratorReset{}
+}
+
+func (a *IteratorReset) Execute(s *state.State, iterator corekv.Iterator) {
+	iterator.Reset()
 }

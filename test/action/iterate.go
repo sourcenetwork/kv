@@ -35,7 +35,14 @@ func (a *Iterate) Execute(s *state.State) {
 	iterator := s.Store.Iterator(s.Ctx, a.IterOptions)
 
 	entries := make([]KeyValue, 0)
-	for iterator.Valid() {
+	for {
+		hasValue, err := iterator.Next()
+		require.NoError(s.T, err)
+
+		if !hasValue {
+			break
+		}
+
 		key := iterator.Key()
 
 		value, err := iterator.Value()
@@ -45,8 +52,6 @@ func (a *Iterate) Execute(s *state.State) {
 			Key:   key,
 			Value: value,
 		})
-
-		iterator.Next()
 	}
 
 	require.Equal(s.T, a.Expected, entries)

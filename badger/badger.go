@@ -151,22 +151,12 @@ func (txn *bTxn) prefixIterator(prefix []byte, reverse, keysOnly bool) *prefixIt
 	opt.Prefix = prefix
 	opt.PrefetchValues = !keysOnly
 
-	it := txn.t.NewIterator(opt)
-	if opt.Reverse {
-		it.Seek(bytesPrefixEnd(prefix))
-		if !it.ValidForPrefix(prefix) {
-			it.Next()
-		}
-	} else {
-		it.Seek(prefix) // all badger iterators must start with a rewind
-
-	}
-
 	return &prefixIterator{
-		i:        it,
+		i:        txn.t.NewIterator(opt),
 		prefix:   prefix,
 		reverse:  reverse,
 		keysOnly: keysOnly,
+		reset:    true,
 	}
 }
 
@@ -175,26 +165,13 @@ func (txn *bTxn) rangeIterator(start, end []byte, reverse, keysOnky bool) *range
 	opt.Reverse = reverse
 	opt.PrefetchValues = !keysOnky
 
-	it := txn.t.NewIterator(opt)
-	// all badger iterators must start with a seek/rewind. This is valid
-	// even if start is nil.
-	if !reverse {
-		it.Seek(start)
-	} else {
-		it.Seek(end)
-		// if we seeked to the end and its an exact match to the end marker
-		// go next. This is because ranges are [start, end) (exlusive)
-		if it.Valid() && equal(it.Item().Key(), end) {
-			it.Next()
-		}
-	}
-
 	return &rangeIterator{
-		i:        it,
+		i:        txn.t.NewIterator(opt),
 		start:    start,
 		end:      end,
 		reverse:  reverse,
 		keysOnly: keysOnky,
+		reset:    true,
 	}
 }
 
@@ -229,10 +206,44 @@ type rangeIterator struct {
 	end      []byte
 	reverse  bool
 	keysOnly bool
-	closer   func() error
+	// reset is a mutatuble property that indicates whether the iterator should be
+	// returned to the beginning on the next [Next] call.
+	reset  bool
+	closer func() error
 }
 
-func (it *rangeIterator) Valid() bool {
+func (it *rangeIterator) Reset() {
+	it.reset = true
+}
+
+// restart returns the iterator back to it's initial location at time of construction,
+// allowing re-iteration of the underlying data.
+func (it *rangeIterator) restart() (bool, error) {
+	it.reset = false
+
+	if it.reverse {
+		hasValue, err := it.Seek(it.end)
+		if !hasValue || err != nil {
+			return false, err
+		}
+
+		// if we seeked to the end and its an exact match to the end marker
+		// go next. This is because ranges are [start, end) (exlusive)
+		//
+		// todo: This check is in the wrong place and is a symptom of:
+		// https://github.com/sourcenetwork/corekv/issues/38 - this check
+		// needs to move to `valid` once/as `Seek` is being fixed.
+		if equal(it.i.Item().Key(), it.end) {
+			return it.Next()
+		}
+
+		return true, nil
+	} else {
+		return it.Seek(it.start)
+	}
+}
+
+func (it *rangeIterator) valid() bool {
 	if !it.i.Valid() {
 		return false
 	}
@@ -248,8 +259,13 @@ func (it *rangeIterator) Valid() bool {
 	return true
 }
 
-func (it *rangeIterator) Next() {
+func (it *rangeIterator) Next() (bool, error) {
+	if it.reset {
+		return it.restart()
+	}
+
 	it.i.Next()
+	return it.valid(), nil
 }
 
 func (it *rangeIterator) Key() []byte {
@@ -264,8 +280,13 @@ func (it *rangeIterator) Value() ([]byte, error) {
 	return it.i.Item().ValueCopy(nil)
 }
 
-func (it *rangeIterator) Seek(target []byte) {
+func (it *rangeIterator) Seek(target []byte) (bool, error) {
+	// Clear the reset property, else if Next was call following Seek,
+	// Next may incorrectly return to the beginning.
+	it.reset = false
+
 	it.i.Seek(target)
+	return it.valid(), nil
 }
 
 func (it *rangeIterator) Close(ctx context.Context) error {
@@ -285,15 +306,44 @@ type prefixIterator struct {
 	prefix   []byte
 	reverse  bool
 	keysOnly bool
-	closer   func() error
+	// reset is a mutatuble property that indicates whether the iterator should be
+	// returned to the beginning on the next [Next] call.
+	reset  bool
+	closer func() error
 }
 
-func (it *prefixIterator) Valid() bool {
-	return it.i.ValidForPrefix(it.prefix)
+func (it *prefixIterator) Reset() {
+	it.reset = true
 }
 
-func (it *prefixIterator) Next() {
+// restart returns the iterator back to it's initial location at time of construction,
+// allowing re-iteration of the underlying data.
+func (it *prefixIterator) restart() (bool, error) {
+	it.reset = false
+
+	if it.reverse {
+		hasItem, err := it.Seek(bytesPrefixEnd(it.prefix))
+		if !hasItem || err != nil {
+			return false, err
+		}
+
+		if !it.i.ValidForPrefix(it.prefix) {
+			return it.Next()
+		}
+
+		return true, nil
+	} else {
+		return it.Seek(it.prefix)
+	}
+}
+
+func (it *prefixIterator) Next() (bool, error) {
+	if it.reset {
+		return it.restart()
+	}
+
 	it.i.Next()
+	return it.i.ValidForPrefix(it.prefix), nil
 }
 
 func (it *prefixIterator) Key() []byte {
@@ -307,8 +357,13 @@ func (it *prefixIterator) Value() ([]byte, error) {
 	return it.i.Item().ValueCopy(nil)
 }
 
-func (it *prefixIterator) Seek(target []byte) {
+func (it *prefixIterator) Seek(target []byte) (bool, error) {
+	// Clear the reset property, else if Next was call following Seek,
+	// Next may incorrectly return to the beginning.
+	it.reset = false
+
 	it.i.Seek(target)
+	return it.i.ValidForPrefix(it.prefix), nil
 }
 
 func (it *prefixIterator) Close(ctx context.Context) error {

@@ -11,7 +11,7 @@ import (
 
 // This test documents unwanted behaviour tracked by issue:
 // https://github.com/sourcenetwork/corekv/issues/38
-func TestIteratorReverseEndSeekValidValue_Badger(t *testing.T) {
+func TestIteratorReverseEndSeekValue_Badger(t *testing.T) {
 	test := &integration.Test{
 		SupportedStoreTypes: []state.StoreType{
 			state.BadgerStoreType,
@@ -27,8 +27,7 @@ func TestIteratorReverseEndSeekValidValue_Badger(t *testing.T) {
 					End:     []byte("k3"),
 				},
 				ChildActions: []action.IteratorAction{
-					action.Seek([]byte("k4")),
-					action.IsValid(),
+					action.Seek([]byte("k4"), true),
 					// `k4` is outside of the upper bound of the iterator and
 					// should not be returned, but it is.
 					action.Value([]byte("v4")),
@@ -40,7 +39,7 @@ func TestIteratorReverseEndSeekValidValue_Badger(t *testing.T) {
 	test.Execute(t)
 }
 
-func TestIteratorReverseEndSeekValidValue_Memory(t *testing.T) {
+func TestIteratorReverseEndSeekValue_Memory(t *testing.T) {
 	test := &integration.Test{
 		SupportedStoreTypes: []state.StoreType{
 			state.MemoryStoreType,
@@ -56,8 +55,7 @@ func TestIteratorReverseEndSeekValidValue_Memory(t *testing.T) {
 					End:     []byte("k3"),
 				},
 				ChildActions: []action.IteratorAction{
-					action.Seek([]byte("k4")),
-					action.IsValid(),
+					action.Seek([]byte("k4"), true),
 					action.Value([]byte("v2")),
 				},
 			},

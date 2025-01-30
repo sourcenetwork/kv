@@ -89,18 +89,13 @@ type Writer interface {
 
 // Iterator is a read-only iterator that allows iteration over the underlying
 // store (or a part of it).
+//
+// Iterator implements the [Enumerable](https://github.com/sourcenetwork/immutable/blob/main/enumerable/enumerable.go)
+// allowing instances of this type to make use of the various utilities within that package.
 type Iterator interface {
-	// Valid returns true if the iterator can return a valid item from
-	// `Value`.
-	//
-	// It will return false in all other cases, for example if the store is
-	// empty, or the iterator has passed the end of the range permitted by it's
-	// initialization options.
-	Valid() bool
-
-	// Next moves the iterator forward, whether there is a valid item available or
-	// not.
-	Next()
+	// Next attempts to move the iterator forward, it will return `true` if it was successful,
+	// otherwise `false`.
+	Next() (bool, error)
 
 	// Key returns the key at the current iterator location.
 	//
@@ -114,13 +109,18 @@ type Iterator interface {
 	// https://github.com/sourcenetwork/corekv/issues/37
 	Value() ([]byte, error)
 
-	// Seek moves the iterator to the given key, if and exact match is not found, the
+	// Seek moves the iterator to the given key, if an exact match is not found, the
 	// iterator will progress to the next valid value (depending on the `Reverse` option).
+	//
+	// Seek will return `true` if it found a valid item, otherwise `false`.
 	//
 	// Seek will not seek to values outside of the constraints provided in [IterOptions],
 	// unless using the badger store due to bug:
 	// https://github.com/sourcenetwork/corekv/issues/38
-	Seek([]byte)
+	Seek([]byte) (bool, error)
+
+	// Reset resets the iterator, allowing for re-iteration.
+	Reset()
 
 	// Close releases the iterator.
 	Close(ctx context.Context) error
