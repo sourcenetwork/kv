@@ -104,10 +104,6 @@ func newRangeIter(db *Datastore, start, end []byte, reverse bool, version uint64
 	return iter
 }
 
-func (iter *iterator) Domain() (start []byte, end []byte) {
-	return iter.start, iter.end
-}
-
 func (iter *iterator) Valid() bool {
 	if !iter.hasItem {
 		return false
