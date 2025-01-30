@@ -114,9 +114,7 @@ type Iterator interface {
 	//
 	// Seek will return `true` if it found a valid item, otherwise `false`.
 	//
-	// Seek will not seek to values outside of the constraints provided in [IterOptions],
-	// unless using the badger store due to bug:
-	// https://github.com/sourcenetwork/corekv/issues/38
+	// Seek will not seek to values outside of the constraints provided in [IterOptions].
 	Seek([]byte) (bool, error)
 
 	// Reset resets the iterator, allowing for re-iteration.

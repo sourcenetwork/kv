@@ -67,22 +67,7 @@ func (it *iterator) restart() (bool, error) {
 	it.reset = false
 
 	if it.reverse {
-		hasValue, err := it.Seek(it.end)
-		if !hasValue || err != nil {
-			return false, err
-		}
-
-		// if we seeked to the end and its an exact match to the end marker
-		// go next. This is because ranges are [start, end) (exlusive)
-		//
-		// todo: This check is in the wrong place and is a symptom of:
-		// https://github.com/sourcenetwork/corekv/issues/38 - this check
-		// needs to move to `valid` once/as `Seek` is being fixed.
-		if equal(it.i.Item().Key(), it.end) {
-			return it.Next()
-		}
-
-		return true, nil
+		return it.Seek(it.end)
 	} else {
 		return it.Seek(it.start)
 	}
@@ -93,12 +78,12 @@ func (it *iterator) valid() bool {
 		return false
 	}
 
-	// if its reversed, we check if we passed the start key
-	if it.reverse && it.start != nil {
-		return bytes.Compare(it.i.Item().Key(), it.start) >= 0 // inclusive
-	} else if !it.reverse && it.end != nil {
-		// if its forward, we check if we passed the end key
-		return bytes.Compare(it.i.Item().Key(), it.end) < 0 // exlusive
+	if len(it.start) > 0 && lt(it.i.Item().Key(), it.start) {
+		return false
+	}
+
+	if len(it.end) > 0 && gte(it.i.Item().Key(), it.end) {
+		return false
 	}
 
 	return true
@@ -131,13 +116,37 @@ func (it *iterator) Value() ([]byte, error) {
 	return it.i.Item().ValueCopy(nil)
 }
 
-func (it *iterator) Seek(target []byte) (bool, error) {
+func (it *iterator) Seek(key []byte) (bool, error) {
 	// Clear the reset property, else if Next was call following Seek,
 	// Next may incorrectly return to the beginning.
 	it.reset = false
 
+	var target []byte
+	if it.reverse {
+		if it.end != nil && lt(it.end, key) {
+			// We should not yield keys greater/equal to the `end`, so if the given seek-key
+			// is greater than `end`, we should instead seek to `end`.
+			target = it.end
+		} else {
+			target = key
+		}
+	} else {
+		if it.start != nil && lt(key, it.start) {
+			// We should not yield keys smaller than `start`, so if the given seek-key
+			// is smaller than `start`, we should instead seek to `start`.
+			target = it.start
+		} else {
+			target = key
+		}
+	}
+
 	it.i.Seek(target)
-	return it.valid(), nil
+
+	if !it.valid() {
+		return it.Next()
+	}
+
+	return true, nil
 }
 
 func (it *iterator) Close(ctx context.Context) error {
@@ -152,10 +161,6 @@ func (it *iterator) withCloser(closer func() error) {
 	it.closer = closer
 }
 
-func equal(a, b []byte) bool {
-	return bytes.Equal(a, b)
-}
-
 func bytesPrefixEnd(b []byte) []byte {
 	end := make([]byte, len(b))
 	copy(end, b)
@@ -168,4 +173,14 @@ func bytesPrefixEnd(b []byte) []byte {
 	// This statement will only be reached if the key is already a
 	// maximal byte string (i.e. already \xff...).
 	return b
+}
+
+// less than (a < b)
+func lt(a, b []byte) bool {
+	return bytes.Compare(a, b) == -1
+}
+
+// greater than or equal to (a >= b)
+func gte(a, b []byte) bool {
+	return bytes.Compare(a, b) > -1
 }
