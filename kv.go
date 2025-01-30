@@ -90,11 +90,6 @@ type Writer interface {
 // Iterator is a read-only iterator that allows iteration over the underlying
 // store (or a part of it).
 type Iterator interface {
-	// The behaviour of Domain is undefined and varies heavily depending on
-	// which store implementation is being iterated over:
-	// https://github.com/sourcenetwork/corekv/issues/31
-	Domain() (start []byte, end []byte)
-
 	// Valid returns true if the iterator can return a valid item from
 	// `Value`.
 	//

@@ -82,13 +82,6 @@ func prefixed(prefix, key []byte) []byte {
 	return append(cp(prefix), key...)
 }
 
-func strip(prefix, key []byte) []byte {
-	if len(key) >= len(prefix) {
-		return key[len(prefix):]
-	}
-	return key
-}
-
 // Iterator creates a new iterator instance
 func (nstore *namespaceStore) Iterator(ctx context.Context, opts corekv.IterOptions) corekv.Iterator {
 	// make a copy of the namespace so that we can safely mutate it within this function
@@ -159,19 +152,6 @@ type namespaceIterator struct {
 	hasStart  bool // original IterOpts.Start
 	hasEnd    bool // original IterOpts.End
 	it        corekv.Iterator
-}
-
-// todo: Should the domain contain the namespace, or strip it?
-func (nIter *namespaceIterator) Domain() (start []byte, end []byte) {
-	start, end = nIter.it.Domain()
-	if start != nil {
-		start = strip(nIter.namespace, start)
-	}
-	if end != nil {
-		end = strip(nIter.namespace, end)
-	}
-
-	return start, end
 }
 
 func (nIter *namespaceIterator) Valid() bool {

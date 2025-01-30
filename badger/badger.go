@@ -232,10 +232,6 @@ type rangeIterator struct {
 	closer   func() error
 }
 
-func (it *rangeIterator) Domain() (start []byte, end []byte) {
-	return it.start, it.end
-}
-
 func (it *rangeIterator) Valid() bool {
 	if !it.i.Valid() {
 		return false
@@ -290,10 +286,6 @@ type prefixIterator struct {
 	reverse  bool
 	keysOnly bool
 	closer   func() error
-}
-
-func (it *prefixIterator) Domain() (start []byte, end []byte) {
-	return it.prefix, it.prefix
 }
 
 func (it *prefixIterator) Valid() bool {
