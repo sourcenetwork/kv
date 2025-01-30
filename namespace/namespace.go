@@ -1,7 +1,6 @@
 package namespace
 
 import (
-	"bytes"
 	"context"
 
 	"github.com/sourcenetwork/corekv"
@@ -108,19 +107,6 @@ type namespaceIterator struct {
 
 func (nIter *namespaceIterator) Reset() {
 	nIter.it.Reset()
-}
-
-func (nIter *namespaceIterator) Valid() bool {
-	// make sure our keys contain the namespace BUT NOT exactly matching
-	key := nIter.it.Key()
-	if bytes.Equal(key, nIter.namespace) {
-		return false
-	}
-	if len(key) >= len(nIter.namespace) && !bytes.Equal(key[:len(nIter.namespace)], nIter.namespace) {
-		return false
-	}
-
-	return true
 }
 
 func (nIter *namespaceIterator) Next() (bool, error) {
