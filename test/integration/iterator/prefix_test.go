@@ -6,7 +6,6 @@ import (
 	"github.com/sourcenetwork/corekv"
 	"github.com/sourcenetwork/corekv/test/action"
 	"github.com/sourcenetwork/corekv/test/integration"
-	"github.com/sourcenetwork/corekv/test/state"
 )
 
 func TestIteratorPrefix(t *testing.T) {
@@ -33,11 +32,8 @@ func TestIteratorPrefix(t *testing.T) {
 	test.Execute(t)
 }
 
-func TestIteratorPrefix_DoesNotReturnSelf_Memory(t *testing.T) {
+func TestIteratorPrefix_DoesNotReturnSelf(t *testing.T) {
 	test := &integration.Test{
-		SupportedStoreTypes: []state.StoreType{
-			state.MemoryStoreType,
-		},
 		Actions: []action.Action{
 			action.Set([]byte("k"), []byte("v")),
 			action.Set([]byte("k1"), []byte("v1")),
@@ -46,7 +42,7 @@ func TestIteratorPrefix_DoesNotReturnSelf_Memory(t *testing.T) {
 					Prefix: []byte("k"),
 				},
 				Expected: []action.KeyValue{
-					// `k` must not be yielded, as prefxes do not contain themselves
+					{Key: []byte("k"), Value: []byte("v")},
 					{Key: []byte("k1"), Value: []byte("v1")},
 				},
 			},
@@ -56,23 +52,15 @@ func TestIteratorPrefix_DoesNotReturnSelf_Memory(t *testing.T) {
 	test.Execute(t)
 }
 
-// This test documents unwanted behaviour, it is tracked by:
-// https://github.com/sourcenetwork/corekv/issues/27
-func TestIteratorPrefix_DoesNotReturnSelf_Badger(t *testing.T) {
+func TestIteratorPrefix_DoesNotReturnSelf_NamespaceMatch(t *testing.T) {
 	test := &integration.Test{
-		SupportedStoreTypes: []state.StoreType{
-			state.BadgerStoreType,
-		},
 		Actions: []action.Action{
-			action.Set([]byte("k"), []byte("v")),
+			action.Set([]byte("namespace"), []byte("namespace exact match")),
+			action.Namespace([]byte("namespace")),
 			action.Set([]byte("k1"), []byte("v1")),
 			&action.Iterate{
-				IterOptions: corekv.IterOptions{
-					Prefix: []byte("k"),
-				},
 				Expected: []action.KeyValue{
-					// `k` should not be yielded, but it is.
-					{Key: []byte("k"), Value: []byte("v")},
+					{Key: []byte(""), Value: []byte("namespace exact match")},
 					{Key: []byte("k1"), Value: []byte("v1")},
 				},
 			},
