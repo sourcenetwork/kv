@@ -139,9 +139,9 @@ func (txn *bTxn) Iterator(ctx context.Context, iterOpts corekv.IterOptions) core
 
 func (txn *bTxn) iterator(iopts corekv.IterOptions) iteratorCloser {
 	if iopts.Prefix != nil {
-		return txn.prefixIterator(iopts.Prefix, iopts.Reverse, iopts.KeysOnly)
+		return newPrefixIterator(txn, iopts.Prefix, iopts.Reverse, iopts.KeysOnly)
 	}
-	return txn.rangeIterator(iopts.Start, iopts.End, iopts.Reverse, iopts.KeysOnly)
+	return newRangeIterator(txn, iopts.Start, iopts.End, iopts.Reverse, iopts.KeysOnly)
 }
 
 func (txn *bTxn) Set(ctx context.Context, key []byte, value []byte) error {

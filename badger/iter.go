@@ -14,7 +14,7 @@ type iteratorCloser interface {
 	withCloser(func() error)
 }
 
-type rangeIterator struct {
+type iterator struct {
 	i        *badger.Iterator
 	start    []byte
 	end      []byte
@@ -26,38 +26,28 @@ type rangeIterator struct {
 	closer func() error
 }
 
-type prefixIterator struct {
-	i        *badger.Iterator
-	prefix   []byte
-	reverse  bool
-	keysOnly bool
-	// reset is a mutatuble property that indicates whether the iterator should be
-	// returned to the beginning on the next [Next] call.
-	reset  bool
-	closer func() error
-}
-
-func (txn *bTxn) prefixIterator(prefix []byte, reverse, keysOnly bool) *prefixIterator {
+func newPrefixIterator(txn *bTxn, prefix []byte, reverse, keysOnly bool) *iterator {
 	opt := badger.DefaultIteratorOptions
 	opt.Reverse = reverse
 	opt.Prefix = prefix
 	opt.PrefetchValues = !keysOnly
 
-	return &prefixIterator{
+	return &iterator{
 		i:        txn.t.NewIterator(opt),
-		prefix:   prefix,
+		start:    prefix,
+		end:      bytesPrefixEnd(prefix),
 		reverse:  reverse,
 		keysOnly: keysOnly,
 		reset:    true,
 	}
 }
 
-func (txn *bTxn) rangeIterator(start, end []byte, reverse, keysOnky bool) *rangeIterator {
+func newRangeIterator(txn *bTxn, start, end []byte, reverse, keysOnky bool) *iterator {
 	opt := badger.DefaultIteratorOptions
 	opt.Reverse = reverse
 	opt.PrefetchValues = !keysOnky
 
-	return &rangeIterator{
+	return &iterator{
 		i:        txn.t.NewIterator(opt),
 		start:    start,
 		end:      end,
@@ -67,13 +57,13 @@ func (txn *bTxn) rangeIterator(start, end []byte, reverse, keysOnky bool) *range
 	}
 }
 
-func (it *rangeIterator) Reset() {
+func (it *iterator) Reset() {
 	it.reset = true
 }
 
 // restart returns the iterator back to it's initial location at time of construction,
 // allowing re-iteration of the underlying data.
-func (it *rangeIterator) restart() (bool, error) {
+func (it *iterator) restart() (bool, error) {
 	it.reset = false
 
 	if it.reverse {
@@ -98,7 +88,7 @@ func (it *rangeIterator) restart() (bool, error) {
 	}
 }
 
-func (it *rangeIterator) valid() bool {
+func (it *iterator) valid() bool {
 	if !it.i.Valid() {
 		return false
 	}
@@ -114,7 +104,7 @@ func (it *rangeIterator) valid() bool {
 	return true
 }
 
-func (it *rangeIterator) Next() (bool, error) {
+func (it *iterator) Next() (bool, error) {
 	if it.reset {
 		return it.restart()
 	}
@@ -123,11 +113,11 @@ func (it *rangeIterator) Next() (bool, error) {
 	return it.valid(), nil
 }
 
-func (it *rangeIterator) Key() []byte {
+func (it *iterator) Key() []byte {
 	return it.i.Item().KeyCopy(nil)
 }
 
-func (it *rangeIterator) Value() ([]byte, error) {
+func (it *iterator) Value() ([]byte, error) {
 	if it.keysOnly {
 		return nil, nil
 	}
@@ -135,7 +125,7 @@ func (it *rangeIterator) Value() ([]byte, error) {
 	return it.i.Item().ValueCopy(nil)
 }
 
-func (it *rangeIterator) Seek(target []byte) (bool, error) {
+func (it *iterator) Seek(target []byte) (bool, error) {
 	// Clear the reset property, else if Next was call following Seek,
 	// Next may incorrectly return to the beginning.
 	it.reset = false
@@ -144,7 +134,7 @@ func (it *rangeIterator) Seek(target []byte) (bool, error) {
 	return it.valid(), nil
 }
 
-func (it *rangeIterator) Close(ctx context.Context) error {
+func (it *iterator) Close(ctx context.Context) error {
 	it.i.Close()
 	if it.closer != nil {
 		return it.closer()
@@ -152,73 +142,7 @@ func (it *rangeIterator) Close(ctx context.Context) error {
 	return nil
 }
 
-func (it *rangeIterator) withCloser(closer func() error) {
-	it.closer = closer
-}
-
-func (it *prefixIterator) Reset() {
-	it.reset = true
-}
-
-// restart returns the iterator back to it's initial location at time of construction,
-// allowing re-iteration of the underlying data.
-func (it *prefixIterator) restart() (bool, error) {
-	it.reset = false
-
-	if it.reverse {
-		hasItem, err := it.Seek(bytesPrefixEnd(it.prefix))
-		if !hasItem || err != nil {
-			return false, err
-		}
-
-		if !it.i.ValidForPrefix(it.prefix) {
-			return it.Next()
-		}
-
-		return true, nil
-	} else {
-		return it.Seek(it.prefix)
-	}
-}
-
-func (it *prefixIterator) Next() (bool, error) {
-	if it.reset {
-		return it.restart()
-	}
-
-	it.i.Next()
-	return it.i.ValidForPrefix(it.prefix), nil
-}
-
-func (it *prefixIterator) Key() []byte {
-	return it.i.Item().KeyCopy(nil)
-}
-
-func (it *prefixIterator) Value() ([]byte, error) {
-	if it.keysOnly {
-		return nil, nil
-	}
-	return it.i.Item().ValueCopy(nil)
-}
-
-func (it *prefixIterator) Seek(target []byte) (bool, error) {
-	// Clear the reset property, else if Next was call following Seek,
-	// Next may incorrectly return to the beginning.
-	it.reset = false
-
-	it.i.Seek(target)
-	return it.i.ValidForPrefix(it.prefix), nil
-}
-
-func (it *prefixIterator) Close(ctx context.Context) error {
-	it.i.Close()
-	if it.closer != nil {
-		return it.closer()
-	}
-	return nil
-}
-
-func (it *prefixIterator) withCloser(closer func() error) {
+func (it *iterator) withCloser(closer func() error) {
 	it.closer = closer
 }
 
