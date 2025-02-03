@@ -21,6 +21,13 @@ type Name = string
 // a new filter operation, the new action must be tested both with, and without
 // a transaction - the transaction concept multiplies the complexity of the system.
 //
+// The identification and automatic representation of complexity multipiers are critical
+// to the long term maintainability and scalability of a codebase. Without them, introducing
+// fairly simple features becomes high risk, and requires a forever growing number of manually
+// constructed tests, when the feature developer needs to remember, and write tests for every
+// multiplier that affects the feature under test.  This is error prone, very tedious, and
+// distracts from the feature itself - often degrading the quality of both test and production code.
+//
 // Complexity multipliers defined using this type may redefine the set of test actions
 // to perform within a test, allowing a single test to scale with the complexity
 // multiplier.  For example, applying a 'namespace' multplier may add an action that
