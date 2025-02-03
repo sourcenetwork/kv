@@ -96,7 +96,7 @@ func (it *iterator) Next() (bool, error) {
 
 	if !it.i.Valid() {
 		// `it.i.Next()` will panic if we attempt to call it having already reached
-		// the iterator end, so we much return before trying to make that call if we can.
+		// the iterator end, so we must return before trying to make that call if we can.
 		return false, nil
 	}
 
