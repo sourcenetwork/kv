@@ -11,6 +11,9 @@ import (
 var activeMultipliers []Multiplier
 var availableMultipliers []Multiplier
 
+// Name represents the unique name of a multiplier.
+//
+// The alias provides a more descriptive type to use besides `string`.
 type Name = string
 
 // Multiplier represents a complexity multiplier of the system under test.
